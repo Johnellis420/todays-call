@@ -1,0 +1,16 @@
+{
+  "name": "Today's Call",
+  "short_name": "Today's Call",
+  "description": "Daily training call (rest, hypertrophy or heavy), workout plan with suggested weights, lift tracking and fuel timing. Free and private.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e0f11",
+  "theme_color": "#0e0f11",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
