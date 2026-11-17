@@ -169,6 +169,24 @@
   .px .rx b{color:var(--accent)}
   .px .ls{font-size:12px;color:var(--faint);margin-top:2px}
   .px .go{color:var(--faint);font-size:20px}
+  .cyc{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#241418;border:1px solid #4a2530;border-radius:12px;padding:10px 12px;margin-bottom:16px}
+  .cyc .ph{font-weight:700;font-size:14.5px;color:#ff9fb1}
+  .cyc .ph small{display:block;font-weight:500;font-size:12px;color:var(--muted);margin-top:2px}
+  .cyc button{flex:none;border:1px solid #6b2f3d;background:#3a1b23;color:#ffc4cf;font:600 13px Inter;border-radius:999px;padding:8px 11px;cursor:pointer}
+  .cycset{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .cycset .two{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .cycset .two label,.cycset .lbl{display:block;font-size:11px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 6px}
+  .cycset .two label{margin-top:0}
+  .starts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .starts span{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 11px;font:600 13px Inter}
+  .starts span button{width:22px;height:22px;border-radius:50%;border:0;background:#2e3238;color:var(--muted);font:700 13px Inter;cursor:pointer}
+  .phbars{margin-top:8px}
+  .phbars .r{display:grid;grid-template-columns:96px 1fr 34px;gap:8px;align-items:center;font-size:13px;margin:7px 0}
+  .phbars .r span:first-child{color:var(--muted)}
+  .phbars .t{height:10px;border-radius:5px;background:var(--panel2);overflow:hidden}
+  .phbars .t i{display:block;height:100%;background:#d9667f;border-radius:5px}
+  .phbars .r b{text-align:right}
+  .pd{color:#ff9fb1;font-weight:600}
   .tin{height:52px;text-align:center;font:700 18px Inter;padding:0 6px}
   .tl{list-style:none;margin:14px 0 0;padding:0;position:relative}
   .tl:before{content:"";position:absolute;left:79px;top:8px;bottom:8px;width:2px;background:var(--line)}
@@ -221,6 +239,7 @@
       <label class="l" for="date">Date</label>
       <input type="date" id="date">
     </div>
+    <div id="cycleBox"></div>
     <div class="field">
       <label class="l">Sleep last night</label>
       <div class="stepper">
@@ -243,6 +262,11 @@
       <label class="l">Energy</label>
       <div class="seg" data-key="energy"></div>
       <div class="ends"><span>Drained</span><span>Fired up</span></div>
+    </div>
+    <div class="field hide" id="cycField">
+      <label class="l">Cycle symptoms <span style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--faint)">(cramps, bloating, headache…)</span></label>
+      <div class="seg" data-key="cyc"></div>
+      <div class="ends"><span>None</span><span>Severe</span></div>
     </div>
     <details id="extras">
       <summary>Optional: calories &amp; work day</summary>
@@ -318,6 +342,7 @@
 <!-- HISTORY -->
 <section id="viewHist" class="hide">
   <div class="stats" id="stats"></div>
+  <div class="card hide" id="cycleInsight"></div>
   <div class="card">
     <label class="l">Readiness, last 14 days</label>
     <div class="bars" id="bars"></div>
@@ -343,6 +368,11 @@
   <div class="card">
     <label class="l">Current goal</label>
     <div class="seg2" id="suGoal"></div>
+  </div>
+  <div class="card">
+    <label class="l">About you</label>
+    <div class="seg2" id="suSex"></div>
+    <div id="suCycle"></div>
   </div>
   <div class="card">
     <label class="l">Your split</label>
@@ -372,6 +402,11 @@
     <label class="l">Current goal</label>
     <div class="seg2" id="stGoal"></div>
     <div class="hint" id="stGoalHint"></div>
+  </div>
+  <div class="card">
+    <label class="l">About you</label>
+    <div class="seg2" id="stSex"></div>
+    <div id="stCycle"></div>
   </div>
   <div class="card">
     <label class="l">Your split</label>
@@ -414,7 +449,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup"};
@@ -461,7 +496,8 @@ const SEG_LABELS = {
   sleepQ:["Awful","Poor","OK","Good","Great"],
   sore:["Fresh","Light","Some","Sore","Wrecked"],
   energy:["Drained","Low","OK","Good","Fired"],
-  work:["Desk","Light","Normal","Hard","Brutal"]
+  work:["Desk","Light","Normal","Hard","Brutal"],
+  cyc:["None","Mild","Some","Strong","Severe"]
 };
 
 /* ================= state ================= */
@@ -487,13 +523,63 @@ function shift(ds,n){ const [y,m,d]=ds.split("-").map(Number); const t=new Date(
 function nice(ds){ const [y,m,d]=ds.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}); }
 const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const jsq = s => esc(String(s).replace(/\\/g,"\\\\").replace(/'/g,"\\'"));
-function blankForm(date){ return {date, sleepH:7, sleepQ:null, sore:null, energy:null, kcal:"", work:null, did:null}; }
+function blankForm(date){ return {date, sleepH:7, sleepQ:null, sore:null, energy:null, kcal:"", work:null, cyc:null, did:null}; }
 function fromLog(date){
   const e = logs[date]; if(!e) return blankForm(date);
   return {date, sleepH:e.sleepH ?? 7, sleepQ:e.sleepQ ?? null, sore:e.sore ?? null, energy:e.energy ?? null,
-          kcal: e.kcal ?? "", work:e.work ?? null, did:e.did ?? null};
+          kcal: e.kcal ?? "", work:e.work ?? null, cyc:e.cyc ?? null, did:e.did ?? null};
 }
 form = blankForm(localDate(new Date()));
+
+/* ================= menstrual cycle ================= */
+const cycleOn = () => !!(profile && profile.sex!=="male" && profile.cycle && profile.cycle.on);
+function dayDiff(a,b){ const [y1,m1,d1]=a.split("-").map(Number), [y2,m2,d2]=b.split("-").map(Number); return Math.round((Date.UTC(y2,m2-1,d2)-Date.UTC(y1,m1-1,d1))/864e5); }
+function cycleLen(){
+  const c=profile.cycle, st=[...(c.starts||[])].sort();
+  const gaps=[]; for(let i=1;i<st.length;i++){ const g=dayDiff(st[i-1],st[i]); if(g>=21&&g<=45) gaps.push(g); }
+  const g=gaps.slice(-6).sort((a,b)=>a-b);
+  return g.length>=2 ? g[Math.floor(g.length/2)] : (Number(c.len)||28);
+}
+const PHASE_LABEL = {period:"Period", follicular:"Follicular phase", ovulation:"Around ovulation", luteal:"Luteal phase", premenstrual:"Before your period", between:"Between periods", late:"Period expected", unknown:"Cycle"};
+function cycleInfo(date){
+  if(!cycleOn()) return null;
+  const c=profile.cycle, st=(c.starts||[]).filter(d=>d<=date).sort();
+  if(!st.length) return {phase:"unknown", day:null};
+  const day=dayDiff(st[st.length-1],date)+1, len=cycleLen(), plen=Number(c.plen)||5;
+  let phase;
+  if(day<=plen) phase="period";
+  else if(c.hormonal) phase = day>len+7 ? "unknown" : "between";
+  else { const ov=len-14;
+    if(day<ov-1) phase="follicular"; else if(day<=ov+1) phase="ovulation";
+    else if(day<=len) phase = (len-day<5) ? "premenstrual" : "luteal";
+    else phase = day<=len+10 ? "late" : "unknown"; }
+  return {day, phase, len, plen, dueIn:len-day+1, hormonal:!!c.hormonal};
+}
+function phaseGroup(ph){ return ph==="period"?"Period" : (ph==="follicular"||ph==="ovulation")?"Follicular" : (ph==="luteal"||ph==="premenstrual")?"Luteal" : null; }
+function togglePeriodStart(){
+  const c=profile.cycle; c.starts=c.starts||[];
+  const i=c.starts.indexOf(form.date);
+  if(i>=0) c.starts.splice(i,1); else { c.starts.push(form.date); c.starts.sort(); c.starts=c.starts.slice(-36); }
+  store(KEYS.profile, profile); toast(i>=0 ? "Removed period start" : "Period start logged"); renderForm();
+}
+function renderCycleBox(){
+  const box=document.getElementById("cycleBox"), fld=document.getElementById("cycField");
+  fld.classList.toggle("hide", !cycleOn());
+  if(!cycleOn()){ box.innerHTML=""; return; }
+  const ci=cycleInfo(form.date), started=(profile.cycle.starts||[]).includes(form.date);
+  let ph, sub;
+  if(!ci || ci.day==null){ ph="Cycle tracking on"; sub="Tap when your period starts"; }
+  else if(ci.phase==="unknown"){ ph="Day "+ci.day; sub="Log your next period when it starts"; }
+  else { ph=PHASE_LABEL[ci.phase]; sub="Cycle day "+ci.day+(ci.phase==="period"?"":ci.phase==="late"?" · period may start any day":(!ci.hormonal&&ci.dueIn<=7&&ci.dueIn>0?` · period in ~${ci.dueIn} day${ci.dueIn===1?"":"s"}`:"")); }
+  box.innerHTML=`<div class="cyc"><div class="ph">${ph}<small>${sub}${ci&&ci.day!=null&&!ci.hormonal&&ci.phase!=="period"&&ci.phase!=="unknown"?" (estimate)":""}</small></div>
+    <button type="button" onclick="togglePeriodStart()">${started?"Undo period start":(form.date===localDate(new Date())?"Period started today":"Period started this day")}</button></div>`;
+}
+function cycleNote(){
+  const ci=cycleInfo(form.date); if(!ci || ci.day==null) return "";
+  if(ci.phase==="period") return `<p class="muted">Period, day ${ci.day}. Research finds strength barely changes across the cycle on average, though the first days feel harder for some. Your symptom rating adjusts today's call, so go by how you feel.</p>`;
+  if(ci.phase==="premenstrual") return `<p class="muted">Your period is likely due soon. Some people notice more fatigue, bloating or hunger now. That's normal, and your check-in already accounts for it.</p>`;
+  return "";
+}
 
 /* ================= readiness logic ================= */
 function trainStreak(date){
@@ -529,6 +615,7 @@ function assess(f){
   if(prev.length){ const a=all.reduce((x,y)=>x+y,0)/all.length;
     if(a<6){ s-=10; why.push(["Sleep debt ("+a.toFixed(1)+" h avg, "+all.length+" nights)","−10","neg"]); } }
   if(f.work!=null && f.work>=4){ s-=5; why.push(["Hard work day yesterday","−5","neg"]); }
+  if(cycleOn() && f.cyc!=null && f.cyc>=3){ const pen=f.cyc>=4?10:5; s-=pen; why.push(["Cycle symptoms "+f.cyc+"/5","−"+pen,"neg"]); }
   s=Math.max(0,Math.min(100,Math.round(s)));
   const G=goal();
   let call;
@@ -576,6 +663,7 @@ function renderCall(){
     <div class="big">${big}</div>
     <div class="split">${a.call==="rest"?"Next split day":"Today's split"}: <b>${esc(a.split)}</b>${a.streak?` · ${a.streak}-day streak`:""}</div>
     ${body}
+    ${cycleNote()}
     <div class="meter"><i style="width:${a.score}%;background:${col}"></i>
       <span class="m1" style="left:${G.rest}%"></span><span class="m2" style="left:${G.heavy}%"></span></div>
     <div class="scoreline"><span>Readiness <b style="color:var(--text)">${a.score}</b>/100</span><span>rest &lt;${G.rest} · heavy ${G.heavy}+</span></div>
@@ -591,6 +679,7 @@ function renderForm(){
     seg.querySelectorAll("button").forEach((b,i)=>b.classList.toggle("on", form[k]===i+1));
   });
   if(form.kcal!=="" || form.work!=null) document.getElementById("extras").open=true;
+  renderCycleBox();
   const ns=nextSplit(form.date);
   document.getElementById("didChips").innerHTML=[...SPLIT(),"Rest"].map(s=>
     `<button class="${form.did===s?"on":""} ${s===ns&&!form.did?"next":""}" onclick="setDid('${jsq(s)}')">${esc(s)}</button>`).join("");
@@ -621,6 +710,7 @@ function renderHist(){
     return `<div class="${c}" style="height:${Math.max(4,e.score)}%" title="${d}: ${e.score}"></div>`;
   }).join("");
   document.getElementById("barsX").innerHTML=days.map(d=>`<span>${Number(d.slice(8))}</span>`).join("");
+  renderCycleInsight(keys);
   const ul=document.getElementById("hist");
   if(!keys.length){ ul.innerHTML=`<div class="empty-hist">No entries yet. Your first check-in will show up here.</div>`; return; }
   const lbl={rest:"Rest",hyper:"Hypertrophy",comp:"Heavy"};
@@ -628,10 +718,27 @@ function renderHist(){
     const e=logs[k];
     return `<li onclick="openDay('${k}')">
       <div class="d">${nice(k).split(",")[0]}<small>${nice(k).split(",").slice(1).join(",")||k.slice(5)}</small></div>
-      <div class="m"><b>${typeof e.sleepH==="number"?e.sleepH.toFixed(1)+" h":"–"}</b> · Q${e.sleepQ??"–"} · Sore ${e.sore??"–"} · En ${e.energy??"–"}${e.did?`<br>Did: <b>${esc(e.did)}</b>`:""}</div>
+      <div class="m"><b>${typeof e.sleepH==="number"?e.sleepH.toFixed(1)+" h":"–"}</b> · Q${e.sleepQ??"–"} · Sore ${e.sore??"–"} · En ${e.energy??"–"}${(()=>{ const ci=cycleInfo(k); return ci&&ci.phase==="period"?` · <span class="pd">Period d${ci.day}</span>`:""; })()}${e.did?`<br>Did: <b>${esc(e.did)}</b>`:""}</div>
       ${e.call?`<span class="badge ${e.call}">${lbl[e.call]}</span>`:"<span></span>"}
     </li>`;
   }).join("");
+}
+
+function renderCycleInsight(keys){
+  const el=document.getElementById("cycleInsight");
+  if(!cycleOn()){ el.classList.add("hide"); return; }
+  const groups={Period:[],Follicular:[],Luteal:[]};
+  keys.forEach(k=>{ const e=logs[k]; if(typeof e.score!=="number") return; const ci=cycleInfo(k); const g=ci&&phaseGroup(ci.phase); if(g && !(ci.hormonal && g!=="Period")) groups[g].push(e.score); });
+  const ready=Object.entries(groups).filter(([,v])=>v.length>=3);
+  el.classList.remove("hide");
+  if(ready.length<2){
+    el.innerHTML=`<label class="l">Your readiness by cycle phase</label><div class="hint" style="margin-top:0">Keep checking in. Once you have a few check-ins in at least two phases, this shows your personal pattern. Research finds the average effect of cycle phase is small and varies a lot from person to person, so your own data is what counts.</div>`;
+    return;
+  }
+  const avg=v=>Math.round(v.reduce((a,b)=>a+b,0)/v.length);
+  el.innerHTML=`<label class="l">Your readiness by cycle phase</label>
+    <div class="phbars">${ready.map(([g,v])=>`<div class="r"><span>${g}</span><div class="t"><i style="width:${avg(v)}%"></i></div><b>${avg(v)}</b></div>`).join("")}</div>
+    <div class="hint">Average readiness score (${ready.map(([g,v])=>g.toLowerCase()+": "+v.length+" check-ins").join(", ")}). Phases after your period are estimates from your cycle length.</div>`;
 }
 
 /* ================= TODAY interactions ================= */
@@ -640,7 +747,7 @@ function buildSegs(){
     const k=seg.dataset.key;
     seg.innerHTML=[1,2,3,4,5].map(n=>`<button type="button">${n}<small>${SEG_LABELS[k][n-1]}</small></button>`).join("");
     seg.querySelectorAll("button").forEach((b,i)=>b.onclick=()=>{
-      form[k] = form[k]===i+1 && k==="work" ? null : i+1; dirty=true; renderForm();
+      form[k] = form[k]===i+1 && (k==="work"||k==="cyc") ? null : i+1; dirty=true; renderForm();
     });
   });
 }
@@ -653,6 +760,7 @@ function docBody(f){
   const body={date:f.date, sleepH:f.sleepH, sleepQ:f.sleepQ, sore:f.sore, energy:f.energy, did:f.did ?? null, updatedAt:new Date().toISOString()};
   if(f.kcal!=="") body.kcal=f.kcal;
   if(f.work!=null) body.work=f.work;
+  if(f.cyc!=null && cycleOn()) body.cyc=f.cyc;
   if(a){ body.score=a.score; body.call=a.call; body.split=a.split; }
   return body;
 }
@@ -990,6 +1098,10 @@ function renderFuel(a){
   out.innerHTML=`<ul class="tl">${items.map(i=>`<li class="${i.cls||""}">
       <div class="t">${i.t==null?i.label:clock(i.t)}${i.sub?`<small>${i.sub}</small>`:""}</div>
       <div class="w"><b>${i.h}</b>${i.s.map(x=>`<span>${x}</span>`).join("")}</div></li>`).join("")}</ul>
+    ${(()=>{ const ci=cycleInfo(form.date); if(!ci) return "";
+      if(ci.phase==="period") return `<div class="hint">During your period, include iron-rich foods (red meat, beans, lentils, spinach) to help replace what's lost.</div>`;
+      if(ci.phase==="premenstrual") return `<div class="hint">Many people get hungrier before their period. Leaning on protein and high-fiber foods helps if you're managing calories.</div>`;
+      return ""; })()}
     <div class="hint">${isCut()?"On a cut, eat most of your carbs before and after training, and fit fats into your other meals.":"Daily totals matter more than exact timing. Use this as a guide, not a deadline."}${kg?"":" Add your body weight above for gram targets sized to you."}</div>`;
 }
 function syncFuelInputs(){
@@ -1085,13 +1197,15 @@ function renderSetup(){
   segButtons(document.getElementById("suUnits"), [["lb","Pounds (lb)"],["kg","Kilograms (kg)"]], draft.units, v=>{ draft.units=v; renderSetup(); });
   segButtons(document.getElementById("suGoal"), Object.entries(GOALS).map(([k,g])=>[k,g.label]), draft.goal, v=>{ draft.goal=v; renderSetup(); });
   renderSplitEditor("su");
+  renderAboutYou("su", draft, ()=>renderSetup());
   document.getElementById("suBw").placeholder = `e.g. ${draft.units==="kg"?"85":"185"} (${draft.units})`;
 }
 function finishSetup(){
   const split=cleanSplit(draft.split);
   if(!split.length){ toast("Add at least one training day"); return; }
   const bw=Number(document.getElementById("suBw").value);
-  profile={units:draft.units, goal:draft.goal, split, bw: bw>0?bw:"", acceptedAt:new Date().toISOString(), v:1};
+  profile={units:draft.units, goal:draft.goal, split, bw: bw>0?bw:"", sex:draft.sex||"na", cycle:cleanCycle(draft.cycle), acceptedAt:new Date().toISOString(), v:1};
+  if(profile.sex==="male") profile.cycle.on=false;
   if(!store(KEYS.profile, profile)){ profile=null; return; }
   draft=null; applyUnits(); syncFuelInputs(); showView("today"); toast("You're set. Do your first check-in");
 }
@@ -1102,6 +1216,7 @@ function renderSettings(){
   const G=goal();
   document.getElementById("stGoalHint").textContent = `Rest is called below ${G.rest} readiness and heavy days at ${G.heavy}+.`+(isCut()?" A cut raises both, because recovery is slower in a calorie deficit.":"");
   renderSplitEditor("st");
+  renderAboutYou("st", profile, (quiet)=>{ profile.cycle=cleanCycle(profile.cycle); if(profile.sex==="male") profile.cycle.on=false; store(KEYS.profile,profile); renderSettings(); if(!quiet) toast("Saved"); });
   const lb=load(KEYS.backup,null);
   const n=Object.keys(logs).length, m=Object.keys(lifts).length;
   document.getElementById("backupInfo").textContent = `${n} check-in${n===1?"":"s"} and ${m} lifting day${m===1?"":"s"} on this phone. ` + (lb ? `Last backup: ${nice(lb.slice(0,10))}.` : "No backup saved yet.");
@@ -1125,6 +1240,48 @@ function changeUnits(v){
   applyUnits(); syncFuelInputs(); renderSettings(); toast("Switched to "+v);
 }
 function applyUnits(){ document.querySelectorAll(".U").forEach(s=>s.textContent=U()); }
+
+/* about you: sex + cycle */
+function defaultCycle(){ return {on:false, starts:[], len:28, plen:5, hormonal:false}; }
+function renderAboutYou(prefix, obj, onChange){
+  segButtons(document.getElementById(prefix+"Sex"), [["male","Male"],["female","Female"],["na","Prefer not to say"]], obj.sex||"", v=>{ obj.sex=v; if(!obj.cycle) obj.cycle=defaultCycle(); onChange(); });
+  const box=document.getElementById(prefix+"Cycle");
+  if(!obj.sex || obj.sex==="male"){ box.innerHTML=obj.sex?"":`<div class="hint">Optional. Choosing Female adds cycle tracking.</div>`; return; }
+  const c=obj.cycle||(obj.cycle=defaultCycle());
+  const last=[...(c.starts||[])].sort().slice(-1)[0]||"";
+  box.innerHTML=`<div class="cycset">
+    <span class="lbl" style="margin-top:0">Track your menstrual cycle?</span>
+    <div class="seg2" id="${prefix}CycOn"></div>
+    ${c.on?`
+      <div class="two">
+        <div><label for="${prefix}CycLast">Last period started</label><input type="date" id="${prefix}CycLast" value="${last}" max="${localDate(new Date())}"></div>
+        <div><label for="${prefix}CycLen">Cycle length (days)</label><input type="number" id="${prefix}CycLen" min="21" max="45" inputmode="numeric" value="${Number(c.len)||28}"></div>
+      </div>
+      <div class="two">
+        <div><label for="${prefix}CycPlen">Period length (days)</label><input type="number" id="${prefix}CycPlen" min="2" max="10" inputmode="numeric" value="${Number(c.plen)||5}"></div>
+        <div></div>
+      </div>
+      <span class="lbl">Hormonal birth control?</span>
+      <div class="seg2" id="${prefix}CycHorm"></div>
+      ${prefix==="st" && (c.starts||[]).length ? `<span class="lbl">Logged period starts</span><div class="starts">${[...c.starts].sort().reverse().slice(0,12).map(d=>`<span>${nice(d)}<button type="button" aria-label="Remove" data-rm="${d}">×</button></span>`).join("")}</div>`:""}
+      <div class="hint">Adds a symptom rating to your check-in (it lowers readiness when symptoms are strong) and, over time, shows your readiness by phase. ${prefix==="st"&&(c.starts||[]).length>=3?`Your average cycle from logged periods: ${cycleLen()} days.`:"Cycle length gets more accurate as you log periods."} Pregnant or postpartum? Turn this off and check with your doctor about training.</div>
+      <div class="hint">Like everything else, this stays only on your phone.</div>`:""}
+  </div>`;
+  segButtons(document.getElementById(prefix+"CycOn"), [["yes","Yes"],["no","No"]], c.on?"yes":"no", v=>{ c.on=(v==="yes"); onChange(); });
+  if(!c.on) return;
+  segButtons(document.getElementById(prefix+"CycHorm"), [["no","No"],["yes","Yes (pill, ring, implant…)"]], c.hormonal?"yes":"no", v=>{ c.hormonal=(v==="yes"); onChange(); });
+  const lastIn=document.getElementById(prefix+"CycLast");
+  lastIn.onchange=()=>{ const v=lastIn.value; if(!/^\d{4}-\d{2}-\d{2}$/.test(v)) return; c.starts=c.starts||[]; if(!c.starts.includes(v)){ c.starts.push(v); c.starts.sort(); } onChange(true); };
+  const num=(id,lo,hi,key)=>{ const el=document.getElementById(id); el.onchange=()=>{ const v=Math.round(Number(el.value)); if(v>=lo&&v<=hi){ c[key]=v; onChange(true); } else { el.value=c[key]; toast(`Use ${lo}–${hi} days`); } }; };
+  num(prefix+"CycLen",21,45,"len"); num(prefix+"CycPlen",2,10,"plen");
+  box.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{ c.starts=c.starts.filter(d=>d!==b.dataset.rm); onChange(); });
+}
+function cleanCycle(c){
+  if(!c || typeof c!=="object") return defaultCycle();
+  const starts=Array.isArray(c.starts)?[...new Set(c.starts.filter(d=>typeof d==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(d)))].sort().slice(-36):[];
+  const len=Math.round(Number(c.len)), plen=Math.round(Number(c.plen));
+  return {on:!!c.on, starts, len:len>=21&&len<=45?len:28, plen:plen>=2&&plen<=10?plen:5, hormonal:!!c.hormonal};
+}
 
 /* backup */
 function exportData(){
@@ -1151,7 +1308,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const okDate=k=>/^\d{4}-\d{2}-\d{2}$/.test(k);
     const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object") L[k]=d.logs[k]; });
     const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>({id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1})); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
-    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain"} : profile;
+    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle)} : profile;
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X)) return;
     logs=L; lifts=X;
     if(P){ profile=P; store(KEYS.profile,profile); }
