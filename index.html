@@ -267,6 +267,26 @@
   .hpstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
   .tbadge{font:700 10px Inter;text-transform:uppercase;letter-spacing:.06em;padding:3px 6px;border-radius:5px;margin-right:6px}
   .tbadge.heavy{background:#4d1d20;color:#ff7a7e} .tbadge.hyper{background:#4a3519;color:var(--hyper)}
+  .bgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .badge2{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:10px 6px;text-align:center;cursor:pointer}
+  .badge2 .i{font-size:28px;line-height:1.1}
+  .badge2 .n{font:700 12px Inter;margin-top:4px;line-height:1.25}
+  .badge2 .d{font-size:10.5px;color:var(--faint);margin-top:3px}
+  .badge2.got{border-color:#6b5320;background:linear-gradient(180deg,#2a2112,var(--panel2))}
+  .badge2.got .d{color:var(--hyper)}
+  .badge2.lock .i{filter:grayscale(1);opacity:.35}
+  .badge2.lock .n{color:var(--muted)}
+  .pbar{height:5px;border-radius:3px;background:#2a2e33;margin:6px 4px 0;overflow:hidden}
+  .pbar i{display:block;height:100%;background:var(--accent)}
+  .bpop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:24px}
+  .bpop.hide{display:none}
+  .bcard{background:var(--panel);border:1px solid #6b5320;border-radius:22px;padding:24px 22px 18px;text-align:center;max-width:340px;width:100%;animation:bpopin .45s cubic-bezier(.2,1.4,.4,1)}
+  @keyframes bpopin{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+  .bicon{font-size:72px;line-height:1;animation:bspin .9s ease-out}
+  @keyframes bspin{from{transform:rotate(-25deg) scale(.4)}to{transform:none}}
+  .bkick{font:700 12px Inter;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-top:10px}
+  .bname{font-family:"Barlow Condensed";font-size:34px;font-weight:800;text-transform:uppercase;margin-top:4px;line-height:1}
+  .bdesc{font-size:14px;color:#d6d9dd;margin:8px 0 16px;line-height:1.45}
   .startw{border:1px solid #2f6f4c;background:#1f2a22;color:#c9f2d9;font:700 14px Inter;border-radius:12px;padding:10px 14px;cursor:pointer;width:100%;margin:2px 0 10px}
   .wtime{font-size:13px;color:var(--muted);margin:-2px 0 10px}
   .wtime b{color:var(--text)}
@@ -450,6 +470,7 @@
 <!-- HISTORY -->
 <section id="viewHist" class="hide">
   <div id="weekWins"></div>
+  <div class="card" id="badgeCard"></div>
   <div class="stats" id="stats"></div>
   <div class="card hide" id="cycleInsight"></div>
   <div class="card">
@@ -582,14 +603,18 @@
   <div class="hint" style="text-align:center" id="verInfo"></div>
 </section>
 
+<div class="bpop hide" id="badgePop" onclick="nextBadgePop()"><div class="bcard" onclick="event.stopPropagation()">
+  <div class="bicon" id="bpIcon">🏅</div><div class="bkick">Badge unlocked</div>
+  <div class="bname" id="bpName"></div><div class="bdesc" id="bpDesc"></div>
+  <button class="btn" onclick="nextBadgePop()" id="bpBtn">Nice!</button></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
-const APP_VERSION = "1.10.0";
+const APP_VERSION = "1.11.0";
 
 /* ================= storage (on this device only) ================= */
-const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", fb:"tc.feedback", sess:"tc.sessions"};
+const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
 let storageOK = true;
 function load(k, fallback){ try{ const v=localStorage.getItem(k); return v ? JSON.parse(v) : fallback; }catch(_){ storageOK=false; return fallback; } }
 function store(k, v){
@@ -891,7 +916,7 @@ function renderHist(){
   }).join("");
   document.getElementById("barsX").innerHTML=days.map(d=>`<span>${Number(d.slice(8))}</span>`).join("");
   renderCycleInsight(keys);
-  renderWeekWins(); renderHistProgress();
+  renderWeekWins(); renderBadges(); renderHistProgress();
   const ul=document.getElementById("hist");
   if(!keys.length){ ul.innerHTML=`<div class="empty-hist">No entries yet. Your first check-in will show up here.</div>`; return; }
   const lbl={rest:"Rest",hyper:"Hypertrophy",comp:"Heavy"};
@@ -947,7 +972,7 @@ function docBody(f){
 }
 function write(f, msg){
   const next={...logs, [f.date]:docBody(f)};
-  if(store(KEYS.logs, next)){ logs=next; dirty=false; if(msg) toast(msg); renderForm(); return true; }
+  if(store(KEYS.logs, next)){ logs=next; dirty=false; if(msg) toast(msg); renderForm(); checkBadges(); return true; }
   return false;
 }
 function save(){
@@ -1611,7 +1636,8 @@ function renderWinsCard(id, date){
   const w=winsFor(date);
   if(!w.list.length){ el.innerHTML=""; return; }
   el.innerHTML=`<div class="card wins"><label class="l" style="color:var(--ok)">${date===localDate(new Date())?"Today's":"This session's"} wins 🔥</label><ul>${w.list.slice(0,8).map(x=>`<li>${x}</li>`).join("")}</ul>
-    ${w.n?`<div class="sub">Beat last time on ${w.beat} of ${w.n} exercise${w.n===1?"":"s"}.</div>`:""}</div>`;
+    ${w.n?`<div class="sub">Beat last time on ${w.beat} of ${w.n} exercise${w.n===1?"":"s"}.</div>`:""}
+    ${(()=>{ const E=badgeState.earned||{}, defs=badgeDefs(); const sd=new Set(badgeState.seeded||[]); const t=Object.keys(E).filter(k=>E[k]===date && !sd.has(k)).map(k=>defs.find(b=>b.id===k)).filter(Boolean); return t.length?`<div class="sub" style="color:var(--hyper)">🏅 New badge${t.length>1?"s":""}: ${t.map(b=>esc(b.name)).join(", ")}</div>`:""; })()}</div>`;
 }
 // short encouraging line for the Today card
 function goodNote(date){
@@ -1642,6 +1668,95 @@ function renderWeekWins(){
   const v1=thisW.reduce((a,d)=>a+volOf(liftEntries(d)),0), v0=lastW.reduce((a,d)=>a+volOf(liftEntries(d)),0);
   if(v0>0 && v1>v0*1.03) items.push(`<b>+${Math.round((v1/v0-1)*100)}% training volume</b> vs last week`);
   el.innerHTML=`<div class="card wins"><label class="l" style="color:var(--ok)">This week 💪</label><ul>${(items.length?items:["Showing up is the win. Keep stacking check-ins."]).map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
+}
+
+/* ================= milestone badges ================= */
+function weekKey(ds){ const [y,m,d]=ds.split("-").map(Number), t=new Date(y,m-1,d); const day=(t.getDay()+6)%7; t.setDate(t.getDate()-day); return localDate(t); }
+function longestRun(sortedDates){ let best=0, run=0, prev=null; sortedDates.forEach(d=>{ run = prev && shift(prev,1)===d ? run+1 : 1; best=Math.max(best,run); prev=d; }); return best; }
+const RX_BENCH=/^(?!.*\b(dip|row|step)\b).*\bbench\b/i, RX_SQUAT=/^(?!.*\b(goblet|split|bulgarian|sissy|bodyweight|jump)\b).*\bsquat\b/i, RX_DEAD=/^(?!.*\b(romanian|rdl|single|stiff)\b).*\bdeadlift\b/i;
+function badgeStats(){
+  const liftDays=Object.keys(lifts).filter(d=>liftEntries(d).length).sort();
+  const ci=Object.keys(logs).filter(d=>typeof logs[d].score==="number").sort();
+  const perWeek={}; liftDays.forEach(d=>{ const k=weekKey(d); perWeek[k]=(perWeek[k]||0)+1; });
+  const goodWeeks=Object.keys(perWeek).filter(k=>perWeek[k]>=3).sort(); let wk=0, run=0, prev=null;
+  goodWeeks.forEach(k=>{ run = prev && shift(prev,7)===k ? run+1 : 1; wk=Math.max(wk,run); prev=k; });
+  let prs=0, gain=0; allNames().forEach(n=>{ const ss=sessions(n).filter(x=>x.best>0); let best=0; ss.forEach((x,i)=>{ if(i>0 && x.best>best+0.01) prs++; best=Math.max(best,x.best); }); if(ss.length>=2) gain=Math.max(gain, best-ss[0].best); });
+  const topOf = re => { let m=0; allNames().filter(n=>re.test(n)).forEach(n=>sessions(n).forEach(x=>x.sets.forEach(e=>{ if(e.r>=1) m=Math.max(m,e.w); }))); return m; };
+  const vol=liftDays.reduce((a,d)=>a+volOf(liftEntries(d)),0);
+  const need=personal(shift(localDate(new Date()),1)).need;
+  const sleepOK=Object.keys(logs).filter(d=>typeof logs[d].sleepH==="number" && logs[d].sleepH>=need).sort();
+  return { workouts:liftDays.length, ciStreak:longestRun(ci), checkins:ci.length, weeks:wk, prs, gain:Math.round(gain),
+    bench:topOf(RX_BENCH), squat:topOf(RX_SQUAT), dead:topOf(RX_DEAD), vol, sleepRun:longestRun(sleepOK),
+    rested:Object.keys(logs).filter(d=>logs[d].call==="rest" && logs[d].did==="Rest").length,
+    dialed:Object.values(feedback).filter(f=>f && f.feel==="right").length };
+}
+function badgeDefs(){
+  const kg=U()==="kg", u=U();
+  const tiers=(fam, icon, key, goals, name, desc)=>goals.map((g,i)=>({id:`${fam}${i}`, fam, tier:i, icon, key, goal:g, name:name(g,i), desc:desc(g,i)}));
+  const plates = kg ? [60,100,140,180] : [135,225,315,405];
+  const plateName=["One-plate","Two-plate","Three-plate","Four-plate","Five-plate"];
+  const big = n => n>=1e6 ? (n/1e6)+"M" : (n/1000)+"k";
+  return [
+    ...tiers("work","🏋️","workouts",[1,10,25,50,100,250], g=>g===1?"First workout":`${g} workouts`, g=>g===1?"You logged your first session. That's the hardest one.":`${g} logged workouts. Consistency builds the body.`),
+    ...tiers("ci","📅","ciStreak",[7,30], g=>`${g}-day check-in streak`, g=>`Checked in ${g} days in a row.`),
+    ...tiers("wk","🔥","weeks",[4,12], g=>`${g}-week streak`, g=>`${g} weeks in a row with 3+ workouts.`),
+    ...tiers("pr","🏆","prs",[1,10,25,50], g=>g===1?"First PR":`${g} PRs`, g=>g===1?"Your first personal record. Many more to come.":`${g} personal records set.`),
+    ...tiers("gain","📈","gain",kg?[5,10,25,50]:[10,25,50,100], g=>`+${g} ${u} stronger`, g=>`Added ${g} ${u} to your estimated max on a lift.`),
+    ...tiers("bench","🛡️","bench",plates, (g,i)=>`${plateName[i]} bench`, g=>`Benched ${g} ${u}.`),
+    ...tiers("squat","🦵","squat",plates, (g,i)=>`${plateName[i]} squat`, g=>`Squatted ${g} ${u}.`),
+    ...tiers("dead","⚡","dead",kg?[60,100,140,180,220]:[135,225,315,405,495], (g,i)=>`${plateName[i]} deadlift`, g=>`Pulled ${g} ${u}.`),
+    ...tiers("vol","🧱","vol",kg?[50e3,250e3,500e3,2.5e6]:[100e3,500e3,1e6,5e6], g=>`${big(g)} ${u} lifted`, g=>`${g.toLocaleString()} ${u} moved in total.`),
+    ...tiers("sleep","😴","sleepRun",[5,14], g=>`${g}-night sleep streak`, g=>`${g} nights in a row at or above your sleep need.`),
+    ...tiers("rest","🧘","rested",[1,10], g=>g===1?"Listened to your body":"Recovery pro", g=>g===1?"Took the rest day when your body called for it.":"Took 10 called rest days. Smart training."),
+    ...tiers("dial","🎯","dialed",[5], ()=>"Dialed in", ()=>"5 sessions rated Just right.")
+  ];
+}
+let badgeState = load(KEYS.badges, {earned:{}, init:false});
+let badgeQueue=[];
+function checkBadges(){
+  try{
+    if(!profile) return;
+    const st=badgeStats(), defs=badgeDefs(), today=localDate(new Date());
+    const fresh=defs.filter(b=>st[b.key]>=b.goal && !badgeState.earned[b.id]);
+    if(!fresh.length && badgeState.init) return;
+    const earned={...badgeState.earned}; fresh.forEach(b=>earned[b.id]=today);
+    const first=!badgeState.init;
+    const seeded=[...new Set([...(badgeState.seeded||[]), ...(first?fresh.map(b=>b.id):[])])];
+    badgeState={earned, init:true, seeded}; store(KEYS.badges, badgeState);
+    if(!first && fresh.length){ badgeQueue.push(...fresh); if(document.getElementById("badgePop").classList.contains("hide")) nextBadgePop(); }
+    if(view==="hist") renderBadges();
+    if(!first && fresh.length && view==="lifts") renderWinsCard("winsLifts", liftDate);
+  }catch(_){}
+}
+function nextBadgePop(){
+  const el=document.getElementById("badgePop"), b=badgeQueue.shift();
+  if(!b){ el.classList.add("hide"); return; }
+  document.getElementById("bpIcon").textContent=b.icon; document.getElementById("bpName").textContent=b.name; document.getElementById("bpDesc").textContent=b.desc;
+  document.getElementById("bpBtn").textContent = badgeQueue.length ? `Nice! (${badgeQueue.length} more)` : "Nice!";
+  el.classList.remove("hide");
+  const c=el.querySelector(".bcard"); c.style.animation="none"; void c.offsetWidth; c.style.animation="";
+  const ic=document.getElementById("bpIcon"); ic.style.animation="none"; void ic.offsetWidth; ic.style.animation="";
+  try{ navigator.vibrate && navigator.vibrate([60,40,120]); }catch(_){}
+}
+function renderBadges(){
+  const el=document.getElementById("badgeCard"); if(!profile){ el.innerHTML=""; return; }
+  const st=badgeStats(), defs=badgeDefs(), E=badgeState.earned||{};
+  const shown=[]; const fams=[...new Set(defs.map(b=>b.fam))];
+  fams.forEach(f=>{ const tiers=defs.filter(b=>b.fam===f); tiers.forEach(b=>{ if(E[b.id]) shown.push({...b, got:true}); }); const next=tiers.find(b=>!E[b.id]); if(next) shown.push({...next, got:false}); });
+  shown.sort((a,b)=> (b.got-a.got) || (a.got ? (E[b.id]||"").localeCompare(E[a.id]||"") : (st[b.key]/b.goal)-(st[a.key]/a.goal)));
+  const n=Object.keys(E).filter(k=>defs.some(b=>b.id===k)).length;
+  const fmtP=b=>{ const v=st[b.key]; return b.key==="vol" ? `${Math.round(v/1000).toLocaleString()}k / ${(b.goal/1000).toLocaleString()}k` : ["bench","squat","dead"].includes(b.key) ? (v>0?`best ${fmtW(v)} ${U()}`:"not logged yet") : `${Math.min(v,b.goal)}/${b.goal}`; };
+  el.innerHTML=`<label class="l">Badges 🏅 <span style="color:var(--accent);text-transform:none;letter-spacing:0">${n} earned</span></label>
+    <div class="bgrid">${shown.map(b=>`<div class="badge2 ${b.got?"got":"lock"}" onclick="badgeInfo('${b.id}')">
+      <div class="i">${b.icon}</div><div class="n">${esc(b.name)}</div>
+      ${b.got ? `<div class="d">${(badgeState.seeded||[]).includes(b.id) ? "✓ earned" : nice(E[b.id]).split(", ").slice(1).join(" ")}</div>` : `<div class="pbar"><i style="width:${Math.round(Math.min(1, st[b.key]/b.goal)*100)}%"></i></div><div class="d">${fmtP(b)}</div>`}
+    </div>`).join("")}</div>
+    <div class="hint">Tap a badge for details. Locked ones show your progress to the next tier.</div>`;
+}
+function badgeInfo(id){
+  const b=badgeDefs().find(x=>x.id===id); if(!b) return;
+  const E=badgeState.earned||{};
+  toast(E[id] ? `${b.icon} ${b.name}: ${(badgeState.seeded||[]).includes(id) ? b.desc : "earned "+nice(E[id])}` : `${b.icon} ${b.name}: ${b.desc}`);
 }
 
 /* ================= history: progress by exercise or split day ================= */
@@ -1758,7 +1873,7 @@ function setFb(date, key, v){
   if(!f.feel && !f.vol){ const n={...feedback}; delete n[date]; if(store(KEYS.fb,n)) feedback=n; }
   else { const n={...feedback, [date]:f}; if(store(KEYS.fb,n)) feedback=n; }
   if(view==="today") renderCall(); else renderLifts();
-  toast("Feedback saved");
+  toast("Feedback saved"); checkBadges();
 }
 
 let currentPlan=null;
@@ -1920,7 +2035,7 @@ function writeLifts(date, entries, msg){
   const next={...lifts};
   if(entries.length) next[date]={split:splitFor(date), entries}; else delete next[date];
   if(store(KEYS.lifts, next)){ lifts=next; if(msg) toast(msg); }
-  renderLifts();
+  renderLifts(); checkBadges();
 }
 function addSet(){
   const name=canonName(document.getElementById("exName").value);
@@ -2062,6 +2177,7 @@ function finishSetup(){
   if(profile.sex==="male") profile.cycle.on=false;
   if(!store(KEYS.profile, profile)){ profile=null; return; }
   draft=null; applyUnits(); syncFuelInputs(); showView("today"); toast("You're set. Do your first check-in");
+  badgeState={earned:{}, init:false}; checkBadges();   // start fresh so the first workout gets celebrated
 }
 function renderSettings(){
   if(!draft) draft={units:profile.units, goal:profile.goal, split:profile.split.map(d=>({...d}))};
@@ -2144,7 +2260,7 @@ function cleanCycle(c){
 
 /* backup */
 function exportData(){
-  const data={app:"todays-call", version:1, exportedAt:new Date().toISOString(), profile, prefs, logs, lifts, feedback, sessions:sessT};
+  const data={app:"todays-call", version:1, exportedAt:new Date().toISOString(), profile, prefs, logs, lifts, feedback, sessions:sessT, badges:badgeState};
   const text=JSON.stringify(data);
   const name=`todays-call-backup-${localDate(new Date())}.json`;
   const file = (()=>{ try{ return new File([text], name, {type:"application/json"}); }catch(_){ return null; } })();
@@ -2172,7 +2288,9 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const SS={}; if(d.sessions && typeof d.sessions==="object") Object.keys(d.sessions).filter(okDate).forEach(k=>{ const v=d.sessions[k]; if(v && typeof v.start==="number"){ SS[k]={start:v.start}; if(typeof v.end==="number" && v.end>v.start) SS[k].end=v.end; else SS[k].end=v.start+60*60e3; } });
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X) || !store(KEYS.fb,FB) || !store(KEYS.sess,SS)) return;
     logs=L; lifts=X; feedback=FB; sessT=SS; syncTimerBar();
+    { const B={earned:{}, init:false}; if(d.badges && d.badges.earned && typeof d.badges.earned==="object") Object.keys(d.badges.earned).slice(0,200).forEach(k=>{ const v=d.badges.earned[k]; if(/^[a-z]+\d+$/.test(k) && okDate(String(v))) B.earned[k]=v; }); if(d.badges && Array.isArray(d.badges.seeded)) B.seeded=d.badges.seeded.filter(k=>typeof k==="string" && B.earned[k]); badgeState=B; store(KEYS.badges,B); }
     if(P){ profile=P; store(KEYS.profile,profile); }
+    checkBadges();   // badges already earned in restored data are added quietly
     if(d.prefs && typeof d.prefs==="object"){ prefs={liftTime:d.prefs.liftTime||prefs.liftTime, dur:Number(d.prefs.dur)||prefs.dur}; store(KEYS.prefs,prefs); }
     draft=null; applyUnits(); syncFuelInputs(); form=fromLog(form.date);
     { const nl=Object.keys(L).length, nx=Object.keys(X).length; toast(`Restored ${nl} check-in${nl===1?"":"s"} and ${nx} lifting day${nx===1?"":"s"}`); }
@@ -2181,6 +2299,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
 });
 function askReset(){ document.getElementById("confirmReset").classList.add("show"); }
 function doReset(){
+  badgeState={earned:{}, init:false}; badgeQueue=[];
   [...Object.values(KEYS),"tc.swaps"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(_){} }); daySwaps={};
   profile=null; logs={}; lifts={}; feedback={}; sessT={}; syncTimerBar(); prefs={liftTime:"17:30", dur:75}; draft=null; form=blankForm(localDate(new Date()));
   document.getElementById("confirmReset").classList.remove("show");
@@ -2249,7 +2368,7 @@ form=fromLog(form.date);
 if(!storageOK || (()=>{ try{ localStorage.setItem("tc.test","1"); localStorage.removeItem("tc.test"); return false; }catch(_){ return true; } })())
   banner("This browser is blocking storage (private browsing?). Your entries won't be saved.");
 showView(profile ? "today" : "setup");
-autoStopStale(); syncTimerBar();
+autoStopStale(); syncTimerBar(); checkBadges();
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible"){ autoStopStale(); syncTimerBar(); renderRest(); } });
 </script>
 </body>
