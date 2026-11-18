@@ -1168,6 +1168,12 @@ function renderSavedSwaps(){
 
 /* ================= WORKOUT PLAN ================= */
 function splitOfDate(d){ const did=logs[d]?.did; if(did && did!=="Rest") return did; const v=lifts[d]; return (v && !Array.isArray(v) && v.split) || null; }
+// Multi-joint lifts vs isolation moves, by name (works for custom names too).
+function isCompound(name){
+  const n=String(name).toLowerCase();
+  if(/\b(fly|flye|flyes|flys|curl|raise|extension|pushdown|push-down|kickback|crunch|calf|shrug|pec deck|pullover|pull-apart|face pull|halo|crossover)\b/.test(n)) return false;
+  return /\b(press|bench|squat|deadlift|rdl|row|pull-?up|chin-?up|pulldown|dip|dips|lunge|step-up|thrust|clean|snatch|get-up|good morning|push-up)\b/.test(n);
+}
 // Your plan for a split day = what you actually did the last time you trained it, in that order.
 // Anything else you've done on that split day (last 8 sessions) becomes a swap suggestion.
 function userList(split, before){
@@ -1184,6 +1190,16 @@ function planList(split, call, before){
   const t=tmplFor(split, call);
   const u=userList(split, before);
   if(!u.list) return {names:t.slice(0, call==="comp" ? 4 : 5), mine:false, n:0, pool:[]};
+  if(call==="comp"){
+    // Heavy day: your strongest compound leads, then up to 2 more compounds and 2 accessories.
+    const comps=u.list.filter(isCompound), isos=u.list.filter(n=>!isCompound(n));
+    const strength=n=>{ const st=recentStats(n, before); return st ? st.e1 : 0; };
+    const main=[...comps].sort((a,b)=>strength(b)-strength(a))[0];
+    const picked=[...(main?[main]:[]), ...comps.filter(n=>n!==main).slice(0,2), ...isos.slice(0,2)];
+    if(picked.length<3) u.list.forEach(n=>{ if(picked.length<4 && !picked.includes(n)) picked.push(n); });
+    const dropped=u.list.filter(n=>!picked.includes(n));
+    return {names:picked, mine:true, n:u.n, pool:[...dropped, ...u.pool], last:u.last, trimmed:dropped.length};
+  }
   return {names:u.list.slice(0,12), mine:true, n:u.n, pool:u.pool, last:u.last};
 }
 function recentStats(name, before){
@@ -1197,11 +1213,11 @@ function roundW(w){
   return w>=45 ? Math.round(w/5)*5 : Math.round(w/2.5)*2.5;
 }
 const wFor = (e1, reps, rir) => roundW(e1/(1+(reps+rir)/30));
-function rxFor(call, idx, sets){
+function rxFor(call, idx, sets, name){
   const n = sets || 3;
   if(call==="comp"){
     if(idx===0) return {kind:"top", label:`Top set 1×5, then ${Math.max(2,n-1)}×6–8`, reps:5, rir:1, sets:1, back:Math.max(2,n-1)};
-    if(idx===1) return {label:`${n} × 6–8`, reps:7, rir:2, sets:n};
+    if(name ? isCompound(name) : idx===1) return {label:`${n} × 6–8`, reps:7, rir:2, sets:n};
     return {label:`${n} × 10–12`, reps:11, rir:2, sets:n};
   }
   if(idx===0) return {label:`${n} × 8–10`, reps:9, rir:2, sets:n};
@@ -1229,7 +1245,8 @@ function buildPlan(date, split, call){
   const p=planList(split, call, date);
   const items=p.names.map((orig,idx)=>{
     const name=resolveName(orig, date, p.mine);
-    const rx=rxFor(call, idx, p.mine ? typicalSets(name, date) : null), st=recentStats(name, date);
+    const ts = p.mine ? typicalSets(name, date) : null;
+    const rx=rxFor(call, idx, ts && call==="comp" ? Math.min(ts,3) : ts, p.mine ? name : null), st=recentStats(name, date);
     let w=null, w2=null, txt, bw=false;
     const prog = p.mine && call!=="comp" && st && name===orig ? progression(st.last.top) : null;
     if(prog){
@@ -1262,7 +1279,7 @@ function renderPlan(a){
   }
   const plan=buildPlan(form.date, a.split, call);
   const done=new Set(liftEntries(form.date).map(e=>e.name.toLowerCase()));
-  const src = plan.mine ? `What you did last ${esc(a.split)} day (${nice(plan.last)}). Anything you add or drop carries into next time.`
+  const src = plan.mine ? (plan.trimmed ? `Heavy day: your main lifts from last ${esc(a.split)} day (${nice(plan.last)}), trimmed down. The other ${plan.trimmed} are under ⇄ Swap if you have gas left.` : `What you did last ${esc(a.split)} day (${nice(plan.last)}). Anything you add or drop carries into next time.`)
     : `Starter template. Once you log a ${esc(a.split)} session, the plan becomes what you actually did.`;
   const anyMissing=plan.items.some(i=>!i.st);
   el.innerHTML=`<div class="card plan">
