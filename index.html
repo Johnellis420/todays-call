@@ -187,6 +187,20 @@
   .phbars .t i{display:block;height:100%;background:#d9667f;border-radius:5px}
   .phbars .r b{text-align:right}
   .pd{color:#ff9fb1;font-weight:600}
+  .swapb{border:1px solid var(--line);background:var(--panel2);color:var(--muted);font:600 12px Inter;border-radius:999px;padding:5px 10px;margin-top:6px;cursor:pointer}
+  .swapb.on{border-color:var(--accent);color:var(--accent)}
+  .px .was{font-size:12px;color:var(--faint);margin-top:1px}
+  .alts{grid-column:1 / -1;background:#15171a;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:-2px}
+  .alts .chips button small{display:block;font:500 11px Inter;color:var(--faint);margin-top:2px}
+  .alts .chips button{text-align:left;border-radius:12px;padding:8px 11px}
+  .alts .chips button.na{opacity:.45}
+  .alts label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-top:10px}
+  .alts label input{width:18px;height:18px;accent-color:var(--accent)}
+  .eqg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .eqg button{border:1px solid var(--line);background:var(--panel2);color:var(--muted);font:600 13.5px Inter;border-radius:999px;padding:9px 12px;cursor:pointer}
+  .eqg button.on{background:var(--text);color:var(--bg);border-color:var(--text)}
+  .altline{margin-top:6px;font-size:13px;color:var(--muted)}
+  .altline button{background:none;border:0;color:var(--accent);font:600 13px Inter;padding:2px 4px;cursor:pointer}
   .tin{height:52px;text-align:center;font:700 18px Inter;padding:0 6px}
   .tl{list-style:none;margin:14px 0 0;padding:0;position:relative}
   .tl:before{content:"";position:absolute;left:79px;top:8px;bottom:8px;width:2px;background:var(--line)}
@@ -380,6 +394,10 @@
     <div id="suSplit"></div>
   </div>
   <div class="card">
+    <label class="l">Equipment you have</label>
+    <div id="suEquip"></div>
+  </div>
+  <div class="card">
     <label class="l" for="suBw">Body weight (optional)</label>
     <div class="hint" style="margin:-4px 0 8px">Sizes your protein and carb targets.</div>
     <input type="number" id="suBw" inputmode="decimal" placeholder="Used for protein and carb targets">
@@ -416,6 +434,11 @@
     <div class="hint">Renaming a day starts that day's exercise history fresh. Your logged lifts are kept.</div>
   </div>
   <div class="card">
+    <label class="l">Equipment you have</label>
+    <div id="stEquip"></div>
+    <div id="stSwaps"></div>
+  </div>
+  <div class="card">
     <label class="l">Backup</label>
     <p class="muted" style="font-size:13.5px;margin:0 0 10px">Your data lives only on this phone. Save a backup now and then, and use it to move to a new phone.</p>
     <div class="row" style="gap:8px">
@@ -449,7 +472,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup"};
@@ -639,7 +662,7 @@ function renderCall(){
     return;
   }
   let main = tmplFor(a.split,"comp")[0] || "your main lift";
-  if(a.call!=="rest"){ const pl=planList(a.split, a.call, form.date); if(pl.names[0]) main=pl.names[0]; }
+  if(a.call!=="rest"){ const pl=planList(a.split, a.call, form.date); if(pl.names[0]) main=resolveName(pl.names[0], form.date, pl.mine); }
   main=esc(main);
   const G=goal();
   let tag, big, body;
@@ -752,7 +775,7 @@ function buildSegs(){
   });
 }
 function bumpSleep(d){ form.sleepH=Math.max(0,Math.min(14,Math.round((form.sleepH+d)*2)/2)); dirty=true; renderForm(); }
-document.getElementById("date").addEventListener("change",e=>{ if(!e.target.value) return; showAnyway=false; form=fromLog(e.target.value); dirty=false; cancelDelete(); renderForm(); });
+document.getElementById("date").addEventListener("change",e=>{ if(!e.target.value) return; showAnyway=false; openSwap=-1; form=fromLog(e.target.value); dirty=false; cancelDelete(); renderForm(); });
 document.getElementById("kcal").addEventListener("input",e=>{ const v=e.target.value.trim(); form.kcal = v===""? "" : Math.max(0,Math.round(Number(v))||0); dirty=true; });
 
 function docBody(f){
@@ -809,7 +832,7 @@ const fmtW = w => w<=0 ? "BW" : (Math.round(w*10)/10).toString();
 
 function canonName(raw){
   const t=raw.trim().replace(/\s+/g," ").slice(0,60); if(!t) return "";
-  const lib=Object.values(DAYTYPES).flatMap(x=>[...x.comp,...x.hyper]);
+  const lib=[...Object.values(DAYTYPES).flatMap(x=>[...x.comp,...x.hyper]), ...Object.keys(EX)];
   const known=[...allNames(),...lib].find(n=>n.toLowerCase()===t.toLowerCase());
   return known || t.split(" ").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ");
 }
@@ -832,16 +855,21 @@ function sessions(name){
 function setsText(sets){ return sets.map(e=>`${fmtW(e.w)}×${e.r}${e.s>1?" ×"+e.s:""}`).join(", "); }
 function splitFor(date){ const did=logs[date]?.did; return (did && did!=="Rest") ? did : nextSplit(date); }
 
+function altLine(name){
+  const a=altsFor(name); if(!a.length) return "";
+  return `<div class="altline">Can't do it here? Try:${a.slice(0,4).map(x=>` <button type="button" onclick="pickEx('${jsq(x)}')">${esc(x)}</button>`).join(" ·")}</div>`;
+}
 function renderLastTime(){
   const el=document.getElementById("lastTime");
   const name=canonName(document.getElementById("exName").value);
   if(!name){ el.innerHTML=""; return; }
+  const al=altLine(name);
   const prev=sessions(name).filter(s=>s.date<liftDate);
-  if(!prev.length){ el.innerHTML=`First time logging <b>${esc(name)}</b>.`; return; }
+  if(!prev.length){ el.innerHTML=`First time logging <b>${esc(name)}</b>.`+al; return; }
   const last=prev[prev.length-1];
   const allBest=Math.max(...prev.map(s=>s.best));
   el.innerHTML=`Last time (${nice(last.date)}): <b>${esc(setsText(last.sets))}</b>`+
-    (allBest>0?`<br>Best est. 1-rep max: <b>${Math.round(allBest)} ${U()}</b>. Beat it for a PR.`:"");
+    (allBest>0?`<br>Best est. 1-rep max: <b>${Math.round(allBest)} ${U()}</b>. Beat it for a PR.`:"")+al;
 }
 
 function renderLifts(){
@@ -850,7 +878,7 @@ function renderLifts(){
   const dayCall = logs[liftDate]?.call==="comp" ? "comp" : "hyper";
   const sug=[...new Set([...planList(split, dayCall, liftDate).names, ...suggestFor(split)])].slice(0,6);
   document.getElementById("exChips").innerHTML=sug.map(n=>`<button onclick="pickEx('${jsq(n)}')">${esc(n)}</button>`).join("");
-  const lib=Object.values(DAYTYPES).flatMap(x=>[...x.comp,...x.hyper]);
+  const lib=[...Object.values(DAYTYPES).flatMap(x=>[...x.comp,...x.hyper]), ...Object.keys(EX)];
   const names=[...new Set([...allNames(),...lib])];
   document.getElementById("exList").innerHTML=names.map(n=>`<option value="${esc(n)}">`).join("");
   renderLastTime();
@@ -922,6 +950,159 @@ function chartSVG(ss, metric, unit){
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="trend">${grid}<polyline points="${pts}" fill="none" stroke="#f2a541" stroke-width="2" stroke-linejoin="round"/>${dots}${lbl(0)}${lbl(ss.length-1)}</svg>`;
 }
 
+/* ================= exercise alternatives & equipment ================= */
+const EQUIP = [["barbell","Barbell & rack"],["dumbbell","Dumbbells"],["bench","Bench"],["cable","Cables"],["machine","Machines"],["bar","Pull-up / dip bar"],["bands","Bands"]];
+const EQ_LABEL = {barbell:"barbell",dumbbell:"dumbbells",bench:"bench",cable:"cable",machine:"machine",bar:"pull-up bar",bands:"bands"};
+const EQUIP_PRESETS = [
+  ["Full gym",{barbell:true,dumbbell:true,bench:true,cable:true,machine:true,bar:true,bands:true}],
+  ["Dumbbells + bench",{barbell:false,dumbbell:true,bench:true,cable:false,machine:false,bar:false,bands:false}],
+  ["Home: bands + bodyweight",{barbell:false,dumbbell:false,bench:false,cable:false,machine:false,bar:false,bands:true}]
+];
+// eq: what the exercise needs ([] = bodyweight). alts: best substitutes, in order.
+const EX = {
+  "Bench Press":{eq:["barbell","bench"],alts:["DB Bench Press","Machine Chest Press","Push-up"]},
+  "DB Bench Press":{eq:["dumbbell","bench"],alts:["Bench Press","Machine Chest Press","Push-up"]},
+  "Machine Chest Press":{eq:["machine"],alts:["DB Bench Press","Bench Press","Push-up"]},
+  "Push-up":{eq:[],alts:["DB Bench Press","Machine Chest Press","Band Chest Press"]},
+  "Band Chest Press":{eq:["bands"],alts:["Push-up","DB Bench Press"]},
+  "Incline DB Press":{eq:["dumbbell","bench"],alts:["Incline Bench Press","Incline Machine Press","Feet-Elevated Push-up"]},
+  "Incline Bench Press":{eq:["barbell","bench"],alts:["Incline DB Press","Incline Machine Press","Feet-Elevated Push-up"]},
+  "Incline Machine Press":{eq:["machine"],alts:["Incline DB Press","Incline Bench Press","Feet-Elevated Push-up"]},
+  "Feet-Elevated Push-up":{eq:[],alts:["Incline DB Press","Push-up"]},
+  "Cable Fly":{eq:["cable"],alts:["DB Fly","Pec Deck","Band Fly","Push-up"]},
+  "Pec Deck":{eq:["machine"],alts:["Cable Fly","DB Fly","Band Fly"]},
+  "DB Fly":{eq:["dumbbell","bench"],alts:["Cable Fly","Pec Deck","Band Fly"]},
+  "Band Fly":{eq:["bands"],alts:["DB Fly","Push-up"]},
+  "Dips":{eq:["bar"],alts:["Bench Dip","Close-Grip Push-up","Tricep Pushdown"]},
+  "Bench Dip":{eq:["bench"],alts:["Dips","Close-Grip Push-up"]},
+  "Close-Grip Push-up":{eq:[],alts:["Bench Dip","Close-Grip Bench Press"]},
+  "Barbell Curl":{eq:["barbell"],alts:["DB Curl","Cable Curl","Band Curl"]},
+  "DB Curl":{eq:["dumbbell"],alts:["Barbell Curl","Cable Curl","Band Curl"]},
+  "Cable Curl":{eq:["cable"],alts:["DB Curl","Barbell Curl","Band Curl"]},
+  "Band Curl":{eq:["bands"],alts:["DB Curl","Cable Curl"]},
+  "Hammer Curl":{eq:["dumbbell"],alts:["Rope Hammer Curl","Band Hammer Curl","Barbell Curl"]},
+  "Rope Hammer Curl":{eq:["cable"],alts:["Hammer Curl","Band Hammer Curl"]},
+  "Band Hammer Curl":{eq:["bands"],alts:["Hammer Curl","Rope Hammer Curl"]},
+  "Incline DB Curl":{eq:["dumbbell","bench"],alts:["DB Curl","Cable Curl","Band Curl"]},
+  "Lat Pulldown":{eq:["cable"],alts:["Pull-up","Assisted Pull-up Machine","Band Lat Pulldown","DB Pullover"]},
+  "Pull-up":{eq:["bar"],alts:["Lat Pulldown","Assisted Pull-up Machine","Band-Assisted Pull-up","Band Lat Pulldown"]},
+  "Weighted Pull-up":{eq:["bar"],alts:["Pull-up","Lat Pulldown","DB Pullover"]},
+  "Assisted Pull-up Machine":{eq:["machine"],alts:["Lat Pulldown","Band-Assisted Pull-up"]},
+  "Band-Assisted Pull-up":{eq:["bar","bands"],alts:["Pull-up","Lat Pulldown"]},
+  "Band Lat Pulldown":{eq:["bands"],alts:["Lat Pulldown","Pull-up"]},
+  "DB Pullover":{eq:["dumbbell","bench"],alts:["Straight-Arm Pulldown","Lat Pulldown"]},
+  "Seated Cable Row":{eq:["cable"],alts:["Machine Row","DB Row","Barbell Row","Band Row"]},
+  "Barbell Row":{eq:["barbell"],alts:["DB Row","Seated Cable Row","Machine Row","Inverted Row"]},
+  "DB Row":{eq:["dumbbell","bench"],alts:["Barbell Row","Seated Cable Row","Band Row"]},
+  "Machine Row":{eq:["machine"],alts:["Seated Cable Row","DB Row","Barbell Row"]},
+  "Band Row":{eq:["bands"],alts:["DB Row","Inverted Row"]},
+  "Inverted Row":{eq:["bar"],alts:["DB Row","Band Row"]},
+  "Straight-Arm Pulldown":{eq:["cable"],alts:["DB Pullover","Band Straight-Arm Pulldown"]},
+  "Band Straight-Arm Pulldown":{eq:["bands"],alts:["DB Pullover","Straight-Arm Pulldown"]},
+  "Face Pull":{eq:["cable"],alts:["Band Face Pull","Rear Delt Fly","Reverse Pec Deck"]},
+  "Band Face Pull":{eq:["bands"],alts:["Face Pull","Rear Delt Fly","Band Pull-Apart"]},
+  "Rear Delt Fly":{eq:["dumbbell"],alts:["Reverse Pec Deck","Face Pull","Band Pull-Apart"]},
+  "Reverse Pec Deck":{eq:["machine"],alts:["Rear Delt Fly","Face Pull","Band Pull-Apart"]},
+  "Band Pull-Apart":{eq:["bands"],alts:["Rear Delt Fly","Face Pull"]},
+  "Tricep Pushdown":{eq:["cable"],alts:["Band Pushdown","Overhead DB Extension","Bench Dip","Close-Grip Push-up"]},
+  "Band Pushdown":{eq:["bands"],alts:["Tricep Pushdown","Overhead DB Extension","Close-Grip Push-up"]},
+  "Skull Crusher":{eq:["barbell","bench"],alts:["DB Skull Crusher","Overhead DB Extension","Close-Grip Push-up"]},
+  "DB Skull Crusher":{eq:["dumbbell","bench"],alts:["Skull Crusher","Overhead DB Extension"]},
+  "Overhead Tricep Extension":{eq:["cable"],alts:["Overhead DB Extension","Skull Crusher","Band Overhead Extension"]},
+  "Overhead DB Extension":{eq:["dumbbell"],alts:["Overhead Tricep Extension","Skull Crusher","Band Overhead Extension"]},
+  "Band Overhead Extension":{eq:["bands"],alts:["Overhead DB Extension","Close-Grip Push-up"]},
+  "Close-Grip Bench Press":{eq:["barbell","bench"],alts:["DB Close-Grip Press","Dips","Close-Grip Push-up"]},
+  "DB Close-Grip Press":{eq:["dumbbell","bench"],alts:["Close-Grip Bench Press","Close-Grip Push-up"]},
+  "Back Squat":{eq:["barbell"],alts:["Hack Squat","Leg Press","Goblet Squat","Bulgarian Split Squat"]},
+  "Hack Squat":{eq:["machine"],alts:["Leg Press","Back Squat","Goblet Squat"]},
+  "Leg Press":{eq:["machine"],alts:["Hack Squat","Goblet Squat","Bulgarian Split Squat"]},
+  "Goblet Squat":{eq:["dumbbell"],alts:["Back Squat","Leg Press","Bodyweight Squat"]},
+  "Bodyweight Squat":{eq:[],alts:["Goblet Squat","Bulgarian Split Squat"]},
+  "Bulgarian Split Squat":{eq:["bench"],alts:["Reverse Lunge","Walking Lunge","Step-up"]},
+  "Reverse Lunge":{eq:[],alts:["Bulgarian Split Squat","Walking Lunge"]},
+  "Walking Lunge":{eq:[],alts:["Reverse Lunge","Bulgarian Split Squat"]},
+  "Step-up":{eq:["bench"],alts:["Reverse Lunge","Bulgarian Split Squat"]},
+  "Leg Extension":{eq:["machine"],alts:["Band Leg Extension","Sissy Squat","Goblet Squat"]},
+  "Band Leg Extension":{eq:["bands"],alts:["Sissy Squat","Leg Extension"]},
+  "Sissy Squat":{eq:[],alts:["Leg Extension","Goblet Squat"]},
+  "Leg Curl":{eq:["machine"],alts:["Nordic Curl","Slider Leg Curl","Band Leg Curl","Romanian Deadlift"]},
+  "Nordic Curl":{eq:[],alts:["Leg Curl","Slider Leg Curl"]},
+  "Slider Leg Curl":{eq:[],alts:["Leg Curl","Nordic Curl"]},
+  "Band Leg Curl":{eq:["bands"],alts:["Leg Curl","Slider Leg Curl"]},
+  "Calf Raise":{eq:["machine"],alts:["DB Calf Raise","Single-Leg Calf Raise"]},
+  "DB Calf Raise":{eq:["dumbbell"],alts:["Calf Raise","Single-Leg Calf Raise"]},
+  "Single-Leg Calf Raise":{eq:[],alts:["DB Calf Raise","Calf Raise"]},
+  "Deadlift":{eq:["barbell"],alts:["Trap Bar Deadlift","DB Deadlift","Romanian Deadlift"]},
+  "Trap Bar Deadlift":{eq:["barbell"],alts:["Deadlift","DB Deadlift"]},
+  "DB Deadlift":{eq:["dumbbell"],alts:["Deadlift","DB Romanian Deadlift"]},
+  "Romanian Deadlift":{eq:["barbell"],alts:["DB Romanian Deadlift","Single-Leg RDL","Cable Pull-Through"]},
+  "DB Romanian Deadlift":{eq:["dumbbell"],alts:["Romanian Deadlift","Single-Leg RDL","Band Good Morning"]},
+  "Single-Leg RDL":{eq:[],alts:["DB Romanian Deadlift","Romanian Deadlift"]},
+  "Cable Pull-Through":{eq:["cable"],alts:["Romanian Deadlift","Band Good Morning"]},
+  "Band Good Morning":{eq:["bands"],alts:["DB Romanian Deadlift","Single-Leg RDL"]},
+  "Hip Thrust":{eq:["barbell","bench"],alts:["DB Hip Thrust","Hip Thrust Machine","Glute Bridge"]},
+  "DB Hip Thrust":{eq:["dumbbell","bench"],alts:["Hip Thrust","Glute Bridge"]},
+  "Hip Thrust Machine":{eq:["machine"],alts:["Hip Thrust","DB Hip Thrust"]},
+  "Glute Bridge":{eq:[],alts:["DB Hip Thrust","Hip Thrust"]},
+  "Back Extension":{eq:["machine"],alts:["DB Romanian Deadlift","Band Good Morning","Superman"]},
+  "Superman":{eq:[],alts:["Back Extension","Single-Leg RDL"]},
+  "Overhead Press":{eq:["barbell"],alts:["Seated DB Press","Machine Shoulder Press","Pike Push-up"]},
+  "Seated DB Press":{eq:["dumbbell","bench"],alts:["Overhead Press","Machine Shoulder Press","Standing DB Press","Pike Push-up"]},
+  "Standing DB Press":{eq:["dumbbell"],alts:["Seated DB Press","Overhead Press","Pike Push-up"]},
+  "Machine Shoulder Press":{eq:["machine"],alts:["Seated DB Press","Overhead Press","Pike Push-up"]},
+  "Pike Push-up":{eq:[],alts:["Standing DB Press","Band Overhead Press"]},
+  "Band Overhead Press":{eq:["bands"],alts:["Standing DB Press","Pike Push-up"]},
+  "Lateral Raise":{eq:["dumbbell"],alts:["Cable Lateral Raise","Machine Lateral Raise","Band Lateral Raise"]},
+  "Cable Lateral Raise":{eq:["cable"],alts:["Lateral Raise","Machine Lateral Raise","Band Lateral Raise"]},
+  "Machine Lateral Raise":{eq:["machine"],alts:["Lateral Raise","Cable Lateral Raise"]},
+  "Band Lateral Raise":{eq:["bands"],alts:["Lateral Raise","Cable Lateral Raise"]}
+};
+const exKey = n => Object.keys(EX).find(k=>k.toLowerCase()===String(n).toLowerCase());
+const equip = () => Object.assign({barbell:true,dumbbell:true,bench:true,cable:true,machine:true,bar:true,bands:true}, (profile&&profile.equip)||{});
+function hasEq(name){ const k=exKey(name); if(!k) return true; const E=equip(); return EX[k].eq.every(e=>E[e]!==false); }
+function altsFor(name){ const k=exKey(name); return k ? EX[k].alts : []; }
+function eqText(name){ const k=exKey(name); if(!k) return ""; const e=EX[k].eq; return e.length ? e.map(x=>EQ_LABEL[x]).join(" + ") : "bodyweight"; }
+function autoAlt(name){ return altsFor(name).find(a=>hasEq(a)) || name; }
+let daySwaps = load("tc.swaps", {});   // date -> {original: replacement}
+function resolveName(orig, date, mine){
+  const d=(daySwaps[date]||{})[orig]; if(d) return d;
+  const pm=(profile&&profile.swaps||{})[orig]; if(pm) return pm;
+  if(!mine && !hasEq(orig)) return autoAlt(orig);
+  return orig;
+}
+let openSwap=-1;
+function toggleSwap(i){ openSwap = openSwap===i ? -1 : i; renderCall(); }
+function pickSwap(i, alt){
+  const it=currentPlan && currentPlan.items[i]; if(!it) return;
+  const orig=it.orig, remember=document.getElementById("swRemember")?.checked;
+  const day=daySwaps[form.date]=daySwaps[form.date]||{};
+  profile.swaps=profile.swaps||{};
+  if(alt===orig){ delete day[orig]; delete profile.swaps[orig]; }
+  else if(remember){ profile.swaps[orig]=alt; delete day[orig]; }
+  else day[orig]=alt;
+  // keep a month of day swaps
+  const cut=shift(localDate(new Date()),-31); Object.keys(daySwaps).forEach(k=>{ if(k<cut) delete daySwaps[k]; });
+  store("tc.swaps", daySwaps); store(KEYS.profile, profile);
+  openSwap=-1; renderCall();
+  toast(alt===orig ? "Back to "+orig : (remember ? `Always ${alt} instead of ${orig}` : `Swapped to ${alt} for today`));
+}
+function renderEquip(prefix, obj, onChange){
+  const E=Object.assign({barbell:true,dumbbell:true,bench:true,cable:true,machine:true,bar:true,bands:true}, obj.equip||{});
+  const box=document.getElementById(prefix+"Equip");
+  const match=EQUIP_PRESETS.findIndex(([,v])=>EQUIP.every(([k])=>!!v[k]===!!E[k]));
+  box.innerHTML=`<div class="chips">${EQUIP_PRESETS.map(([n],i)=>`<button type="button" class="${i===match?"on":""}" data-p="${i}">${n}</button>`).join("")}</div>
+    <div class="eqg">${EQUIP.map(([k,l])=>`<button type="button" class="${E[k]?"on":""}" data-k="${k}">${l}</button>`).join("")}</div>
+    <div class="hint">Starter workouts swap out anything you can't do. You can also swap any exercise in your plan with the ⇄ button.</div>`;
+  box.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{ obj.equip={...EQUIP_PRESETS[+b.dataset.p][1]}; onChange(); });
+  box.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{ E[b.dataset.k]=!E[b.dataset.k]; obj.equip=E; onChange(); });
+}
+function renderSavedSwaps(){
+  const el=document.getElementById("stSwaps"); const sw=(profile.swaps)||{}; const ks=Object.keys(sw);
+  el.innerHTML = ks.length ? `<span class="lbl" style="display:block;font-size:11px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px">Your saved swaps</span>
+    <div class="starts">${ks.map(k=>`<span>${esc(k)} → ${esc(sw[k])}<button type="button" data-k="${esc(k)}" aria-label="Remove">×</button></span>`).join("")}</div>` : "";
+  el.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{ delete profile.swaps[b.dataset.k]; store(KEYS.profile,profile); renderSettings(); toast("Swap removed"); });
+}
+
 /* ================= WORKOUT PLAN ================= */
 function splitOfDate(d){ const did=logs[d]?.did; if(did && did!=="Rest") return did; const v=lifts[d]; return (v && !Array.isArray(v) && v.split) || null; }
 function userList(split, before){
@@ -973,7 +1154,8 @@ function typicalSets(name, before){
 }
 function buildPlan(date, split, call){
   const p=planList(split, call, date);
-  const items=p.names.map((name,idx)=>{
+  const items=p.names.map((orig,idx)=>{
+    const name=resolveName(orig, date, p.mine);
     const rx=rxFor(call, idx, p.mine ? typicalSets(name, date) : null), st=recentStats(name, date);
     let w=null, w2=null, txt, bw=false;
     if(st && st.e1>0){
@@ -986,7 +1168,7 @@ function buildPlan(date, split, call){
     } else {
       txt=`${rx.label}, pick a weight you could do ~${rx.reps+rx.rir} times`;
     }
-    return {name, rx, w, bw, txt, st};
+    return {name, orig, rx, w, bw, txt, st};
   });
   return {...p, items, split, call};
 }
@@ -1007,11 +1189,16 @@ function renderPlan(a){
   el.innerHTML=`<div class="card plan">
     <label class="l">${a.call==="rest"?"Light session":call==="comp"?"Heavy session":"Hypertrophy session"} · ${esc(a.split)}</label>
     <div class="src">${src}</div>
-    ${plan.items.map((it,i)=>`<div class="px" onclick="openLift(${i})">
+    ${plan.items.map((it,i)=>{ const alts=[...new Set([...(it.name!==it.orig?[it.orig]:[]), ...altsFor(it.orig).filter(a=>a!==it.name), ...altsFor(it.name).filter(a=>a!==it.orig&&a!==it.name)])].sort((x,y)=>(x===it.orig?-1:0)-(y===it.orig?-1:0) || (hasEq(y)?1:0)-(hasEq(x)?1:0)).slice(0,5);
+      return `<div class="px" onclick="openLift(${i})">
         <div class="i ${done.has(it.name.toLowerCase())?"done":""}">${done.has(it.name.toLowerCase())?"✓":i+1}</div>
-        <div><div class="nm">${esc(it.name)}</div><div class="rx">${it.txt}</div>
-          ${it.st?`<div class="ls">Last: ${esc(setsText(it.st.last.sets))} (${nice(it.st.last.date)})</div>`:""}</div>
-        <div class="go">›</div></div>`).join("")}
+        <div><div class="nm">${esc(it.name)}</div>${it.name!==it.orig?`<div class="was">instead of ${esc(it.orig)}</div>`:""}<div class="rx">${it.txt}</div>
+          ${it.st?`<div class="ls">Last: ${esc(setsText(it.st.last.sets))} (${nice(it.st.last.date)})</div>`:""}
+          ${alts.length?`<button type="button" class="swapb ${openSwap===i?"on":""}" onclick="event.stopPropagation();toggleSwap(${i})">⇄ Swap</button>`:""}</div>
+        <div class="go">›</div>
+        ${openSwap===i?`<div class="alts" onclick="event.stopPropagation()"><div class="chips">${alts.map(a=>`<button type="button" class="${hasEq(a)?"":"na"}" onclick="pickSwap(${i},'${jsq(a)}')">${a===it.orig?"↺ Back to ":""}${esc(a)}<small>${esc(eqText(a))}${hasEq(a)?"":" · not in your equipment"}</small></button>`).join("")}</div>
+          <label><input type="checkbox" id="swRemember"> Always use my pick instead of ${esc(it.orig)}</label></div>`:""}
+      </div>`; }).join("")}
     <div class="hint">${call==="comp"?"Stop each set with 1–2 reps left. Rest 2–3 min on the top set.":"Stop each set with about 2 reps left. Rest 60–90 sec."}
       ${anyMissing?" Lifts without a weight get one once you've logged them.":""} Tap an exercise to log it.</div>
   </div>`;
@@ -1198,13 +1385,14 @@ function renderSetup(){
   segButtons(document.getElementById("suGoal"), Object.entries(GOALS).map(([k,g])=>[k,g.label]), draft.goal, v=>{ draft.goal=v; renderSetup(); });
   renderSplitEditor("su");
   renderAboutYou("su", draft, ()=>renderSetup());
+  renderEquip("su", draft, ()=>renderSetup());
   document.getElementById("suBw").placeholder = `e.g. ${draft.units==="kg"?"85":"185"} (${draft.units})`;
 }
 function finishSetup(){
   const split=cleanSplit(draft.split);
   if(!split.length){ toast("Add at least one training day"); return; }
   const bw=Number(document.getElementById("suBw").value);
-  profile={units:draft.units, goal:draft.goal, split, bw: bw>0?bw:"", sex:draft.sex||"na", cycle:cleanCycle(draft.cycle), acceptedAt:new Date().toISOString(), v:1};
+  profile={units:draft.units, goal:draft.goal, split, bw: bw>0?bw:"", sex:draft.sex||"na", cycle:cleanCycle(draft.cycle), equip:cleanEquip(draft.equip), swaps:{}, acceptedAt:new Date().toISOString(), v:1};
   if(profile.sex==="male") profile.cycle.on=false;
   if(!store(KEYS.profile, profile)){ profile=null; return; }
   draft=null; applyUnits(); syncFuelInputs(); showView("today"); toast("You're set. Do your first check-in");
@@ -1217,6 +1405,8 @@ function renderSettings(){
   document.getElementById("stGoalHint").textContent = `Rest is called below ${G.rest} readiness and heavy days at ${G.heavy}+.`+(isCut()?" A cut raises both, because recovery is slower in a calorie deficit.":"");
   renderSplitEditor("st");
   renderAboutYou("st", profile, (quiet)=>{ profile.cycle=cleanCycle(profile.cycle); if(profile.sex==="male") profile.cycle.on=false; store(KEYS.profile,profile); renderSettings(); if(!quiet) toast("Saved"); });
+  renderEquip("st", profile, ()=>{ profile.equip=cleanEquip(profile.equip); store(KEYS.profile,profile); renderSettings(); });
+  renderSavedSwaps();
   const lb=load(KEYS.backup,null);
   const n=Object.keys(logs).length, m=Object.keys(lifts).length;
   document.getElementById("backupInfo").textContent = `${n} check-in${n===1?"":"s"} and ${m} lifting day${m===1?"":"s"} on this phone. ` + (lb ? `Last backup: ${nice(lb.slice(0,10))}.` : "No backup saved yet.");
@@ -1276,6 +1466,8 @@ function renderAboutYou(prefix, obj, onChange){
   num(prefix+"CycLen",21,45,"len"); num(prefix+"CycPlen",2,10,"plen");
   box.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{ c.starts=c.starts.filter(d=>d!==b.dataset.rm); onChange(); });
 }
+function cleanEquip(e){ const o={}; EQUIP.forEach(([k])=>{ o[k] = !(e && e[k]===false); }); return o; }
+function cleanSwaps(sw){ const o={}; if(sw && typeof sw==="object") Object.keys(sw).slice(0,100).forEach(k=>{ if(typeof sw[k]==="string") o[String(k).slice(0,60)]=sw[k].slice(0,60); }); return o; }
 function cleanCycle(c){
   if(!c || typeof c!=="object") return defaultCycle();
   const starts=Array.isArray(c.starts)?[...new Set(c.starts.filter(d=>typeof d==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(d)))].sort().slice(-36):[];
@@ -1308,7 +1500,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const okDate=k=>/^\d{4}-\d{2}-\d{2}$/.test(k);
     const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object") L[k]=d.logs[k]; });
     const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>({id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1})); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
-    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle)} : profile;
+    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps)} : profile;
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X)) return;
     logs=L; lifts=X;
     if(P){ profile=P; store(KEYS.profile,profile); }
@@ -1320,7 +1512,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
 });
 function askReset(){ document.getElementById("confirmReset").classList.add("show"); }
 function doReset(){
-  Object.values(KEYS).forEach(k=>{ try{ localStorage.removeItem(k); }catch(_){} });
+  [...Object.values(KEYS),"tc.swaps"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(_){} }); daySwaps={};
   profile=null; logs={}; lifts={}; prefs={liftTime:"17:30", dur:75}; draft=null; form=blankForm(localDate(new Date()));
   document.getElementById("confirmReset").classList.remove("show");
   showView("setup"); toast("All data erased");
