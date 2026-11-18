@@ -214,6 +214,16 @@
   .altline button{background:none;border:0;color:var(--accent);font:600 13px Inter;padding:2px 4px;cursor:pointer}
   .fb4{flex-wrap:wrap}
   .fb4 button{flex:1 1 40%}
+  .which{margin-top:10px}
+  .which summary{font-size:13px}
+  .which ul{margin:8px 0 0;padding-left:18px;font-size:13px;line-height:1.5;color:var(--muted)}
+  .which li{margin-bottom:4px}
+  .which b{color:var(--text)}
+  .fbv{flex-wrap:wrap}
+  .fbv button{flex:1 1 40%}
+  .fbv button[onclick*="'same'"]{flex-basis:100%;order:2}
+  .fbv button[onclick*="'more'"],.fbv button[onclick*="'moreEx'"]{order:1}
+  .fbv button[onclick*="'less'"],.fbv button[onclick*="'lessEx'"]{order:3}
   .tin{height:52px;text-align:center;font:700 18px Inter;padding:0 6px}
   .tl{list-style:none;margin:14px 0 0;padding:0;position:relative}
   .tl:before{content:"";position:absolute;left:79px;top:8px;bottom:8px;width:2px;background:var(--line)}
@@ -487,7 +497,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.7.1";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", fb:"tc.feedback"};
@@ -1220,12 +1230,26 @@ function planList(split, call, before){
     const picked=[...(main?[main]:[]), ...comps.filter(n=>n!==main).slice(0,2), ...isos.slice(0,2)];
     if(picked.length<3) u.list.forEach(n=>{ if(picked.length<4 && !picked.includes(n)) picked.push(n); });
     const fb=fbFor(u.last, split);
-    if(fb && fb.vol==="more"){ const extra=u.list.find(n=>!picked.includes(n)); if(extra) picked.push(extra); }
-    if(fb && fb.vol==="less" && picked.length>3) picked.pop();
+    let added=null;
+    if(fb && fb.vol==="moreEx"){ added=u.list.find(n=>!picked.includes(n)) || u.pool[0] || extraFor(split,"comp",[...picked]); if(added) picked.push(added); }
+    if(fb && fb.vol==="lessEx" && picked.length>3) picked.pop();
     const dropped=u.list.filter(n=>!picked.includes(n));
-    return {names:picked, mine:true, n:u.n, pool:[...dropped, ...u.pool], last:u.last, trimmed:dropped.length, fb};
+    return {names:picked, mine:true, n:u.n, pool:[...dropped, ...u.pool.filter(n=>n!==added)], last:u.last, trimmed:dropped.length, fb, added};
   }
-  return {names:u.list.slice(0,12), mine:true, n:u.n, pool:u.pool, last:u.last, fb:fbFor(u.last, split)};
+  const fb=fbFor(u.last, split);
+  let names=u.list.slice(0,12), pool=[...u.pool], added=null;
+  if(fb && fb.vol==="moreEx"){ added = pool[0] || extraFor(split,"hyper",names); if(added){ names=[...names, added]; pool=pool.filter(n=>n!==added); } }
+  if(fb && fb.vol==="lessEx" && names.length>3){ pool=[names[names.length-1], ...pool]; names=names.slice(0,-1); }
+  return {names, mine:true, n:u.n, pool, last:u.last, fb, added};
+}
+// An exercise for this split day that isn't already in the plan, and that you have equipment for.
+// "Barbell Bench Press", "Bench Press" and "Seated DB Press" vs "Sitting Dumbbell Press" count as the same lift.
+function normEx(n){ return String(n).toLowerCase().replace(/\bdumbbells?\b/g,"db").replace(/\b(barbell|bb|seated|sitting|standing|single|single-arm|one-arm)\b/g,"").replace(/[^a-z]/g,""); }
+function extraFor(split, call, have){
+  const low=new Set(have.map(normEx));
+  const t=DAYTYPES[typeOf(split)]; if(!t) return null;
+  const cands=[...t.hyper, ...t.comp].map(n=>hasEq(n)?n:autoAlt(n));
+  return cands.find(n=>!low.has(normEx(n))) || null;
 }
 function recentStats(name, before){
   const ss=sessions(name).filter(s=>s.date<before).slice(-3);
@@ -1274,8 +1298,11 @@ function buildPlan(date, split, call){
   const items=p.names.map((orig,idx)=>{
     const name=resolveName(orig, date, p.mine);
     let ts = p.mine ? typicalSets(name, date) : null;
+    if(p.added && orig===p.added && !ts) ts=3;
     if(ts && fb && call!=="comp"){ if(fb.vol==="more" && idx<half) ts=Math.min(8,ts+1); if(fb.vol==="less" && idx>=N-half) ts=Math.max(2,ts-1); }
-    const rx=rxFor(call, idx, ts && call==="comp" ? Math.min(ts,3) : ts, p.mine ? name : null), st=recentStats(name, date);
+    let hs = ts && call==="comp" ? Math.min(ts,3) : ts;
+    if(hs && fb && call==="comp" && p.mine){ if(fb.vol==="more" && idx<2) hs=hs+1; if(fb.vol==="less" && !isCompound(name)) hs=2; }
+    const rx=rxFor(call, idx, hs, p.mine ? name : null), st=recentStats(name, date);
     let w=null, w2=null, txt, bw=false;
     const prog = p.mine && call!=="comp" && st && name===orig ? progression(st.last.top, fb && fb.feel) : null;
     if(prog){
@@ -1294,20 +1321,23 @@ function buildPlan(date, split, call){
     } else {
       txt=`${rx.label}, pick a weight you could do ~${rx.reps+rx.rir} times`;
     }
+    if(p.added && orig===p.added) txt+=`<div class="ls" style="color:var(--ok)">Added from your feedback</div>`;
     return {name, orig, rx, w, bw, txt, st};
   });
-  return {...p, items, split, call, fbNote: fbNote(fb, call, N, half)};
+  return {...p, items, split, call, fbNote: fbNote(fb, call, N, half, p.added)};
 }
 /* ================= post-workout feedback ================= */
 const FEEL=[["easy","Too easy"],["right","Just right"],["tough","Tough"],["much","Too much"]];
-const VOL=[["more","More"],["same","Same"],["less","Less"]];
+const VOL=[["more","More sets"],["moreEx","More exercises"],["same","Same"],["less","Fewer sets"],["lessEx","Fewer exercises"]];
 function fbFor(date, split){ const f=date && feedback[date]; return f && (!f.split || f.split===split) ? f : null; }
-function fbNote(fb, call, N, half){
+function fbNote(fb, call, N, half, added){
   if(!fb) return "";
   const feel=(FEEL.find(x=>x[0]===fb.feel)||[])[1], parts=[];
+  if(fb.vol==="moreEx") parts.push(added ? `added ${added}` : "no extra exercise to add");
+  if(fb.vol==="lessEx") parts.push("dropped your last exercise (it's under ⇄ Swap)");
   if(call==="comp"){
-    if(fb.vol==="more") parts.push("one extra exercise added back");
-    if(fb.vol==="less") parts.push("one accessory dropped");
+    if(fb.vol==="more") parts.push("+1 set on your 2 main lifts");
+    if(fb.vol==="less") parts.push("accessories cut to 2 sets");
     if(fb.feel==="easy") parts.push("weights up about 2.5%");
     if(fb.feel==="much") parts.push("weights down about 5%");
   } else {
@@ -1316,13 +1346,16 @@ function fbNote(fb, call, N, half){
     if(fb.feel==="easy") parts.push("weights up");
     if(fb.feel==="much") parts.push("match last time instead of adding reps");
   }
-  const said=[feel, fb.vol==="more"?"wanted more":fb.vol==="less"?"wanted less":null].filter(Boolean).join(", ");
+  const want={more:"wanted more sets",moreEx:"wanted more exercises",less:"wanted fewer sets",lessEx:"wanted fewer exercises"}[fb.vol];
+  const said=[feel, want].filter(Boolean).join(", ");
   return said ? `Adjusted from your feedback (${said.toLowerCase()})${parts.length?": "+parts.join(", "):": no changes needed"}.` : "";
 }
 function fbPreview(f){
   const bits=[];
-  if(f.vol==="more") bits.push("more sets on your first exercises (heavy days: one extra exercise)");
-  if(f.vol==="less") bits.push("fewer sets on your last exercises (heavy days: one less accessory)");
+  if(f.vol==="more") bits.push("+1 set on your first exercises (heavy days: on your 2 main lifts)");
+  if(f.vol==="moreEx") bits.push("one more exercise, from your own first");
+  if(f.vol==="less") bits.push("−1 set on your last exercises (heavy days: accessories at 2 sets)");
+  if(f.vol==="lessEx") bits.push("your last exercise dropped (still under ⇄ Swap)");
   if(f.feel==="easy") bits.push("heavier weights");
   if(f.feel==="much") bits.push("no rep increase, so you match last time");
   if(f.feel==="right"||f.feel==="tough") bits.push("the usual beat-last-time progression");
@@ -1339,7 +1372,13 @@ function renderFeedback(id, date){
     <label class="l">How was today's ${esc(split)}?</label>
     <div class="seg2 fb4">${btns(FEEL,"feel")}</div>
     <label class="l" style="margin-top:14px">Next time?</label>
-    <div class="seg2">${btns(VOL,"vol")}</div>
+    <div class="seg2 fbv">${btns(VOL,"vol")}</div>
+    <details class="which"><summary>Which one?</summary><ul>
+      <li><b>More sets:</b> the muscles you worked still had more in them. You were done before you were tired.</li>
+      <li><b>More exercises:</b> a muscle or angle felt left out (say, upper chest or rear delts), or you want some variety.</li>
+      <li><b>Fewer sets:</b> your last sets turned into grinders with sloppy form, or your joints feel beat up.</li>
+      <li><b>Fewer exercises:</b> you ran short on time, or the last exercise wasn't doing much for you.</li>
+      <li><b>Same:</b> it felt about right. Progress comes from beating last time.</li></ul></details>
     <div class="hint">${f.feel||f.vol ? esc(fbPreview(f))+" This applies to your next "+esc(split)+" day." : "Your answer tunes the next "+esc(split)+" day: sets, and whether the weights go up."}</div>
   </div>`;
 }
