@@ -198,6 +198,8 @@
   .alts .chips button small{display:block;font:500 11px Inter;color:var(--faint);margin-top:2px}
   .alts .chips button{text-align:left;border-radius:12px;padding:8px 11px}
   .alts .chips button.na{opacity:.45}
+  .alts .chips button.mine{border-color:#6b5320}
+  .alts .chips button.mine small{color:var(--hyper)}
   .alts label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-top:10px}
   .alts label input{width:18px;height:18px;accent-color:var(--accent)}
   .eqg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -476,7 +478,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.4.2";
+const APP_VERSION = "1.5.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup"};
@@ -1166,24 +1168,23 @@ function renderSavedSwaps(){
 
 /* ================= WORKOUT PLAN ================= */
 function splitOfDate(d){ const did=logs[d]?.did; if(did && did!=="Rest") return did; const v=lifts[d]; return (v && !Array.isArray(v) && v.split) || null; }
+// Your plan for a split day = what you actually did the last time you trained it, in that order.
+// Anything else you've done on that split day (last 8 sessions) becomes a swap suggestion.
 function userList(split, before){
-  const days=Object.keys(lifts).filter(d=>d<before && liftEntries(d).length && splitOfDate(d)===split).sort().reverse().slice(0,6);
-  if(days.length<2) return {list:null, n:days.length};
-  const stat=new Map();
-  days.forEach(d=>{ const seen=[]; liftEntries(d).forEach(e=>{ if(!seen.includes(e.name)) seen.push(e.name); });
-    seen.forEach((n,i)=>{ const s=stat.get(n)||{n,c:0,pos:0}; s.c++; s.pos+=i/Math.max(1,seen.length-1); stat.set(n,s); }); });
-  const min = days.length>=3 ? 2 : 1;
-  const list=[...stat.values()].filter(s=>s.c>=min).sort((a,b)=>(a.pos/a.c)-(b.pos/b.c)).map(s=>s.n);
-  return {list, n:days.length};
+  const days=Object.keys(lifts).filter(d=>d<before && liftEntries(d).length && splitOfDate(d)===split).sort().reverse().slice(0,8);
+  if(!days.length) return {list:null, n:0, pool:[]};
+  const uniq = d => { const seen=[]; liftEntries(d).forEach(e=>{ if(!seen.some(x=>x.toLowerCase()===e.name.toLowerCase())) seen.push(e.name); }); return seen; };
+  const list=uniq(days[0]);
+  const freq=new Map();
+  days.slice(1).forEach(d=>uniq(d).forEach(n=>{ if(!list.some(x=>x.toLowerCase()===n.toLowerCase())) freq.set(n,(freq.get(n)||0)+1); }));
+  const pool=[...freq.entries()].sort((a,b)=>b[1]-a[1]).map(([n])=>n);
+  return {list, n:days.length, pool, last:days[0]};
 }
 function planList(split, call, before){
   const t=tmplFor(split, call);
   const u=userList(split, before);
-  const cap = u.list ? 10 : (call==="comp" ? 4 : 5);
-  if(!u.list) return {names:t.slice(0,cap), mine:false, n:u.n};
-  const names=[...u.list];
-  for(const n of t){ if(names.length>=Math.min(cap,4)) break; if(!names.some(x=>x.toLowerCase()===n.toLowerCase())) names.push(n); }
-  return {names:names.slice(0,cap), mine:true, n:u.n};
+  if(!u.list) return {names:t.slice(0, call==="comp" ? 4 : 5), mine:false, n:0, pool:[]};
+  return {names:u.list.slice(0,12), mine:true, n:u.n, pool:u.pool, last:u.last};
 }
 function recentStats(name, before){
   const ss=sessions(name).filter(s=>s.date<before).slice(-3);
@@ -1213,13 +1214,30 @@ function typicalSets(name, before){
   const t=ss.map(s=>s.sets.reduce((a,e)=>a+(e.s||1),0)).sort((a,b)=>a-b);
   return Math.min(10, t[Math.floor(t.length/2)]);
 }
+// Double progression on your own exercises: same weight, one more rep than last time.
+// Hit 15 reps and the weight goes up while the reps drop back.
+function progression(top){
+  const w=top.w, r=top.r;
+  if(w>0 && r>=15){
+    const inc = U()==="kg" ? (w>=20?2.5:1.25) : (w>=45?5:2.5);
+    const nw=Math.round((w+inc)*100)/100, nr=Math.max(6, r-4);
+    return {w:nw, reps:nr, note:`You hit ${r} last time. Go up to ${nw} ${U()} and work back up from ${nr}.`};
+  }
+  return {w, reps:Math.min(30, r+1), note: w>0 ? `Beat last time: ${fmtW(w)}×${r} → aim for ${r+1}.` : `Beat last time: ${r} reps → aim for ${r+1}.`};
+}
 function buildPlan(date, split, call){
   const p=planList(split, call, date);
   const items=p.names.map((orig,idx)=>{
     const name=resolveName(orig, date, p.mine);
     const rx=rxFor(call, idx, p.mine ? typicalSets(name, date) : null), st=recentStats(name, date);
     let w=null, w2=null, txt, bw=false;
-    if(st && st.e1>0){
+    const prog = p.mine && call!=="comp" && st && name===orig ? progression(st.last.top) : null;
+    if(prog){
+      w=prog.w; rx.reps=prog.reps;
+      txt = prog.w>0 ? `${rx.sets} × <b>${prog.reps}</b> @ <b>${prog.w} ${U()}</b>` : `${rx.sets} × <b>${prog.reps}</b> @ bodyweight`;
+      txt += `<div class="ls" style="color:var(--hyper)">${prog.note}</div>`;
+      if(prog.w<=0) bw=true;
+    } else if(st && st.e1>0){
       w=wFor(st.e1, rx.reps, rx.rir);
       if(rx.kind==="top"){ w2=roundW(w*0.88); txt=`Top set 1×5 @ <b>${w} ${U()}</b>, then ${rx.back}×6–8 @ <b>${w2} ${U()}</b>`; }
       else txt=`${rx.label} @ <b>${w} ${U()}</b>`;
@@ -1244,24 +1262,29 @@ function renderPlan(a){
   }
   const plan=buildPlan(form.date, a.split, call);
   const done=new Set(liftEntries(form.date).map(e=>e.name.toLowerCase()));
-  const src = plan.mine ? `Built from your last ${plan.n} ${esc(a.split)} sessions`
-    : `Starter template. After you log ${esc(a.split)} ${plan.n===1?"one more time":"twice"}, it switches to your own exercises.`;
+  const src = plan.mine ? `What you did last ${esc(a.split)} day (${nice(plan.last)}). Anything you add or drop carries into next time.`
+    : `Starter template. Once you log a ${esc(a.split)} session, the plan becomes what you actually did.`;
   const anyMissing=plan.items.some(i=>!i.st);
   el.innerHTML=`<div class="card plan">
     <label class="l">${a.call==="rest"?"Light session":call==="comp"?"Heavy session":"Hypertrophy session"} · ${esc(a.split)}</label>
     <div class="src">${src}</div>
-    ${plan.items.map((it,i)=>{ const alts=[...new Set([...(it.name!==it.orig?[it.orig]:[]), ...altsFor(it.orig).filter(a=>a!==it.name), ...altsFor(it.name).filter(a=>a!==it.orig&&a!==it.name)])].sort((x,y)=>(x===it.orig?-1:0)-(y===it.orig?-1:0) || (hasEq(y)?1:0)-(hasEq(x)?1:0)).slice(0,5);
+    ${plan.items.map((it,i)=>{
+      const inPlan=new Set(plan.items.map(x=>x.name.toLowerCase()));
+      const mineAlts=(plan.pool||[]).filter(a=>!inPlan.has(a.toLowerCase())).slice(0,4);
+      const libAlts=[...altsFor(it.orig).filter(a=>a!==it.name), ...altsFor(it.name).filter(a=>a!==it.orig&&a!==it.name)].filter(a=>!mineAlts.includes(a)).sort((x,y)=>(hasEq(y)?1:0)-(hasEq(x)?1:0));
+      const alts=[...new Set([...(it.name!==it.orig?[it.orig]:[]), ...mineAlts, ...libAlts])].slice(0,7);
+      const mineSet=new Set(mineAlts);
       return `<div class="px" onclick="openLift(${i})">
         <div class="i ${done.has(it.name.toLowerCase())?"done":""}">${done.has(it.name.toLowerCase())?"✓":i+1}</div>
         <div><div class="nm">${esc(it.name)}</div>${it.name!==it.orig?`<div class="was">instead of ${esc(it.orig)}</div>`:""}<div class="rx">${it.txt}</div>
           ${it.st?`<div class="ls">Last: ${esc(setsText(it.st.last.sets))} (${nice(it.st.last.date)})</div>`:""}
           <div class="acts">${howToBtn(it.name)}${alts.length?`<button type="button" class="swapb ${openSwap===i?"on":""}" onclick="event.stopPropagation();toggleSwap(${i})">⇄ Swap</button>`:""}</div></div>
         <div class="go">›</div>
-        ${openSwap===i?`<div class="alts" onclick="event.stopPropagation()"><div class="chips">${alts.map(a=>`<button type="button" class="${hasEq(a)?"":"na"}" onclick="pickSwap(${i},'${jsq(a)}')">${a===it.orig?"↺ Back to ":""}${esc(a)}<small>${esc(eqText(a))}${hasEq(a)?"":" · not in your equipment"}</small></button>`).join("")}</div>
+        ${openSwap===i?`<div class="alts" onclick="event.stopPropagation()"><div class="chips">${alts.map(a=>`<button type="button" class="${hasEq(a)?"":"na"} ${mineSet.has(a)?"mine":""}" onclick="pickSwap(${i},'${jsq(a)}')">${a===it.orig?"↺ Back to ":""}${esc(a)}<small>${mineSet.has(a)?"from your "+esc(plan.split)+" days":esc(eqText(a))}${hasEq(a)?"":" · not in your equipment"}</small></button>`).join("")}</div>
           <label><input type="checkbox" id="swRemember"> Always use my pick instead of ${esc(it.orig)}</label>
           <div class="altline">Not sure how to do one? ${alts.slice(0,4).map(a=>`<a href="${howTo(a)}" target="_blank" rel="noopener">${esc(a)}</a>`).join(" · ")}</div></div>`:""}
       </div>`; }).join("")}
-    <div class="hint">${call==="comp"?"Stop each set with 1–2 reps left. Rest 2–3 min on the top set.":"Stop each set with about 2 reps left. Rest 60–90 sec."}
+    <div class="hint">${call==="comp"?"Stop each set with 1–2 reps left. Rest 2–3 min on the top set.":plan.mine?"Beat last time with clean form. If it turns into a grind, matching last time is a win. Rest 60–90 sec.":"Stop each set with about 2 reps left. Rest 60–90 sec."}
       ${anyMissing?" Lifts without a weight get one once you've logged them.":""} Tap an exercise to log it.</div>
   </div>`;
   currentPlan=plan;
