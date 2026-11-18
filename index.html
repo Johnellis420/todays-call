@@ -212,6 +212,8 @@
   .eqg button.on{background:var(--text);color:var(--bg);border-color:var(--text)}
   .altline{margin-top:6px;font-size:13px;color:var(--muted)}
   .altline button{background:none;border:0;color:var(--accent);font:600 13px Inter;padding:2px 4px;cursor:pointer}
+  .fb4{flex-wrap:wrap}
+  .fb4 button{flex:1 1 40%}
   .tin{height:52px;text-align:center;font:700 18px Inter;padding:0 6px}
   .tl{list-style:none;margin:14px 0 0;padding:0;position:relative}
   .tl:before{content:"";position:absolute;left:79px;top:8px;bottom:8px;width:2px;background:var(--line)}
@@ -245,6 +247,7 @@
 <section id="viewToday">
   <div id="callCard" class="call empty"></div>
   <div id="planCard"></div>
+  <div id="fbToday"></div>
 
   <div class="card fuel">
     <label class="l">Fuel timing</label>
@@ -356,6 +359,7 @@
     <label class="l" id="dayLiftsLabel">Logged today</label>
     <div id="dayLifts"></div>
   </div>
+  <div id="fbLifts"></div>
 
   <div class="card">
     <label class="l" for="progSel">Progress</label>
@@ -483,10 +487,10 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.6.0";
+const APP_VERSION = "1.7.0";
 
 /* ================= storage (on this device only) ================= */
-const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup"};
+const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", fb:"tc.feedback"};
 let storageOK = true;
 function load(k, fallback){ try{ const v=localStorage.getItem(k); return v ? JSON.parse(v) : fallback; }catch(_){ storageOK=false; return fallback; } }
 function store(k, v){
@@ -539,6 +543,7 @@ let profile = load(KEYS.profile, null);
 let logs = load(KEYS.logs, {});
 let lifts = load(KEYS.lifts, {});      // date -> {split, entries:[...]}
 let prefs = Object.assign({liftTime:"17:30", dur:75}, load(KEYS.prefs, {}));
+let feedback = load(KEYS.fb, {});   // date -> {feel, vol, split}
 let form, dirty=false, view="today", showAnyway=false, lastAssess=null;
 
 const U = () => (profile && profile.units) || "lb";
@@ -672,6 +677,7 @@ function renderCall(){
   const el=document.getElementById("callCard");
   const a=assess(form);
   renderPlan(a);
+  renderFeedback("fbToday", form.date);
   lastAssess=a; renderFuel(a);
   if(!a){
     el.className="call empty";
@@ -933,6 +939,7 @@ function renderLifts(){
               <button class="btn ghost" style="height:42px;margin:0" onclick="editId=null;renderLifts()">Cancel</button></div></div>`; })()}</div>`;
     }).join("") + `<div class="hint">Tap a set to fix it, or × to remove it.</div>`;
   }
+  renderFeedback("fbLifts", liftDate);
   renderProgress();
 }
 
@@ -1212,10 +1219,13 @@ function planList(split, call, before){
     const main=[...comps].sort((a,b)=>strength(b)-strength(a))[0];
     const picked=[...(main?[main]:[]), ...comps.filter(n=>n!==main).slice(0,2), ...isos.slice(0,2)];
     if(picked.length<3) u.list.forEach(n=>{ if(picked.length<4 && !picked.includes(n)) picked.push(n); });
+    const fb=fbFor(u.last, split);
+    if(fb && fb.vol==="more"){ const extra=u.list.find(n=>!picked.includes(n)); if(extra) picked.push(extra); }
+    if(fb && fb.vol==="less" && picked.length>3) picked.pop();
     const dropped=u.list.filter(n=>!picked.includes(n));
-    return {names:picked, mine:true, n:u.n, pool:[...dropped, ...u.pool], last:u.last, trimmed:dropped.length};
+    return {names:picked, mine:true, n:u.n, pool:[...dropped, ...u.pool], last:u.last, trimmed:dropped.length, fb};
   }
-  return {names:u.list.slice(0,12), mine:true, n:u.n, pool:u.pool, last:u.last};
+  return {names:u.list.slice(0,12), mine:true, n:u.n, pool:u.pool, last:u.last, fb:fbFor(u.last, split)};
 }
 function recentStats(name, before){
   const ss=sessions(name).filter(s=>s.date<before).slice(-3);
@@ -1239,16 +1249,18 @@ function rxFor(call, idx, sets, name){
   if(idx<=2)  return {label:`${n} × 10–12`, reps:11, rir:2, sets:n};
   return {label:`${n} × 12–15`, reps:13, rir:2, sets:n};
 }
-function typicalSets(name, before){
-  const ss=sessions(name).filter(s=>s.date<before).slice(-3);
+function typicalSets(name, before){   // working sets you did last time
+  const ss=sessions(name).filter(s=>s.date<before);
   if(!ss.length) return null;
-  const t=ss.map(s=>s.sets.reduce((a,e)=>a+(e.s||1),0)).sort((a,b)=>a-b);
-  return Math.min(10, t[Math.floor(t.length/2)]);
+  return Math.min(10, ss[ss.length-1].sets.reduce((a,e)=>a+(e.s||1),0));
 }
 // Double progression on your own exercises: same weight, one more rep than last time.
 // Hit 15 reps and the weight goes up while the reps drop back.
-function progression(top){
+function progression(top, feel){
   const w=top.w, r=top.r;
+  const inc = U()==="kg" ? (w>=20?2.5:1.25) : (w>=45?5:2.5);
+  if(feel==="much") return {w, reps:r, note: w>0 ? `Last time felt like too much: match ${fmtW(w)}×${r} today.` : `Last time felt like too much: match ${r} reps today.`};
+  if(feel==="easy" && w>0){ const nw=Math.round((w+inc)*100)/100; return {w:nw, reps:r, note:`Last time felt too easy: up to ${nw} ${U()} for ${r}.`}; }
   if(w>0 && r>=15){
     const inc = U()==="kg" ? (w>=20?2.5:1.25) : (w>=45?5:2.5);
     const nw=Math.round((w+inc)*100)/100, nr=Math.max(6, r-4);
@@ -1258,12 +1270,14 @@ function progression(top){
 }
 function buildPlan(date, split, call){
   const p=planList(split, call, date);
+  const fb=p.fb, N=p.names.length, half=Math.ceil(N/2);
   const items=p.names.map((orig,idx)=>{
     const name=resolveName(orig, date, p.mine);
-    const ts = p.mine ? typicalSets(name, date) : null;
+    let ts = p.mine ? typicalSets(name, date) : null;
+    if(ts && fb && call!=="comp"){ if(fb.vol==="more" && idx<half) ts=Math.min(8,ts+1); if(fb.vol==="less" && idx>=N-half) ts=Math.max(2,ts-1); }
     const rx=rxFor(call, idx, ts && call==="comp" ? Math.min(ts,3) : ts, p.mine ? name : null), st=recentStats(name, date);
     let w=null, w2=null, txt, bw=false;
-    const prog = p.mine && call!=="comp" && st && name===orig ? progression(st.last.top) : null;
+    const prog = p.mine && call!=="comp" && st && name===orig ? progression(st.last.top, fb && fb.feel) : null;
     if(prog){
       w=prog.w; rx.reps=prog.reps;
       txt = prog.w>0 ? `${rx.sets} × <b>${prog.reps}</b> @ <b>${prog.w} ${U()}</b>` : `${rx.sets} × <b>${prog.reps}</b> @ bodyweight`;
@@ -1271,6 +1285,7 @@ function buildPlan(date, split, call){
       if(prog.w<=0) bw=true;
     } else if(st && st.e1>0){
       w=wFor(st.e1, rx.reps, rx.rir);
+      if(fb && call==="comp" && p.mine){ if(fb.feel==="easy") w=roundW(w*1.025); if(fb.feel==="much") w=roundW(w*0.95); }
       if(rx.kind==="top"){ w2=roundW(w*0.88); txt=`Top set 1×5 @ <b>${w} ${U()}</b>, then ${rx.back}×6–8 @ <b>${w2} ${U()}</b>`; }
       else txt=`${rx.label} @ <b>${w} ${U()}</b>`;
     } else if(st && st.e1===0){
@@ -1281,8 +1296,63 @@ function buildPlan(date, split, call){
     }
     return {name, orig, rx, w, bw, txt, st};
   });
-  return {...p, items, split, call};
+  return {...p, items, split, call, fbNote: fbNote(fb, call, N, half)};
 }
+/* ================= post-workout feedback ================= */
+const FEEL=[["easy","Too easy"],["right","Just right"],["tough","Tough"],["much","Too much"]];
+const VOL=[["more","More"],["same","Same"],["less","Less"]];
+function fbFor(date, split){ const f=date && feedback[date]; return f && (!f.split || f.split===split) ? f : null; }
+function fbNote(fb, call, N, half){
+  if(!fb) return "";
+  const feel=(FEEL.find(x=>x[0]===fb.feel)||[])[1], parts=[];
+  if(call==="comp"){
+    if(fb.vol==="more") parts.push("one extra exercise added back");
+    if(fb.vol==="less") parts.push("one accessory dropped");
+    if(fb.feel==="easy") parts.push("weights up about 2.5%");
+    if(fb.feel==="much") parts.push("weights down about 5%");
+  } else {
+    if(fb.vol==="more") parts.push(`+1 set on your first ${half} exercise${half===1?"":"s"}`);
+    if(fb.vol==="less") parts.push(`−1 set on your last ${half} exercise${half===1?"":"s"}`);
+    if(fb.feel==="easy") parts.push("weights up");
+    if(fb.feel==="much") parts.push("match last time instead of adding reps");
+  }
+  const said=[feel, fb.vol==="more"?"wanted more":fb.vol==="less"?"wanted less":null].filter(Boolean).join(", ");
+  return said ? `Adjusted from your feedback (${said.toLowerCase()})${parts.length?": "+parts.join(", "):": no changes needed"}.` : "";
+}
+function fbPreview(f){
+  const bits=[];
+  if(f.vol==="more") bits.push("more sets on your first exercises (heavy days: one extra exercise)");
+  if(f.vol==="less") bits.push("fewer sets on your last exercises (heavy days: one less accessory)");
+  if(f.feel==="easy") bits.push("heavier weights");
+  if(f.feel==="much") bits.push("no rep increase, so you match last time");
+  if(f.feel==="right"||f.feel==="tough") bits.push("the usual beat-last-time progression");
+  return bits.length ? "Next time: "+bits.join(", ")+"." : "";
+}
+function renderFeedback(id, date){
+  const el=document.getElementById(id); if(!el) return;
+  const entries=liftEntries(date);
+  if(!entries.length){ el.innerHTML=""; return; }
+  const split=(lifts[date] && !Array.isArray(lifts[date]) && lifts[date].split) || splitFor(date);
+  const f=feedback[date]||{};
+  const btns=(list,key)=>list.map(([v,l])=>`<button type="button" class="${f[key]===v?"on":""}" onclick="setFb('${date}','${key}','${v}')">${l}</button>`).join("");
+  el.innerHTML=`<div class="card fb">
+    <label class="l">How was today's ${esc(split)}?</label>
+    <div class="seg2 fb4">${btns(FEEL,"feel")}</div>
+    <label class="l" style="margin-top:14px">Next time?</label>
+    <div class="seg2">${btns(VOL,"vol")}</div>
+    <div class="hint">${f.feel||f.vol ? esc(fbPreview(f))+" This applies to your next "+esc(split)+" day." : "Your answer tunes the next "+esc(split)+" day: sets, and whether the weights go up."}</div>
+  </div>`;
+}
+function setFb(date, key, v){
+  const split=(lifts[date] && !Array.isArray(lifts[date]) && lifts[date].split) || splitFor(date);
+  const f={...(feedback[date]||{}), split};
+  f[key] = f[key]===v ? undefined : v;
+  if(!f.feel && !f.vol){ const n={...feedback}; delete n[date]; if(store(KEYS.fb,n)) feedback=n; }
+  else { const n={...feedback, [date]:f}; if(store(KEYS.fb,n)) feedback=n; }
+  if(view==="today") renderCall(); else renderLifts();
+  toast("Feedback saved");
+}
+
 let currentPlan=null;
 function renderPlan(a){
   const el=document.getElementById("planCard");
@@ -1300,7 +1370,7 @@ function renderPlan(a){
   const anyMissing=plan.items.some(i=>!i.st);
   el.innerHTML=`<div class="card plan">
     <label class="l">${a.call==="rest"?"Light session":call==="comp"?"Heavy session":"Hypertrophy session"} · ${esc(a.split)}</label>
-    <div class="src">${src}</div>
+    <div class="src">${src}</div>${plan.fbNote?`<div class="src" style="color:var(--hyper);margin-top:-4px">${esc(plan.fbNote)}</div>`:""}
     ${plan.items.map((it,i)=>{
       const inPlan=new Set(plan.items.map(x=>x.name.toLowerCase()));
       const mineAlts=(plan.pool||[]).filter(a=>!inPlan.has(a.toLowerCase())).slice(0,4);
@@ -1623,7 +1693,7 @@ function cleanCycle(c){
 
 /* backup */
 function exportData(){
-  const data={app:"todays-call", version:1, exportedAt:new Date().toISOString(), profile, prefs, logs, lifts};
+  const data={app:"todays-call", version:1, exportedAt:new Date().toISOString(), profile, prefs, logs, lifts, feedback};
   const text=JSON.stringify(data);
   const name=`todays-call-backup-${localDate(new Date())}.json`;
   const file = (()=>{ try{ return new File([text], name, {type:"application/json"}); }catch(_){ return null; } })();
@@ -1647,8 +1717,9 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object") L[k]=d.logs[k]; });
     const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1}; if(typeof e.forPlan==="string") o.forPlan=e.forPlan.slice(0,60); return o; }); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
     const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps)} : profile;
-    if(!store(KEYS.logs,L) || !store(KEYS.lifts,X)) return;
-    logs=L; lifts=X;
+    const FB={}; if(d.feedback && typeof d.feedback==="object") Object.keys(d.feedback).filter(okDate).forEach(k=>{ const f=d.feedback[k]; if(f && typeof f==="object"){ const o={}; if(FEEL.some(x=>x[0]===f.feel)) o.feel=f.feel; if(VOL.some(x=>x[0]===f.vol)) o.vol=f.vol; if(typeof f.split==="string") o.split=f.split.slice(0,30); if(o.feel||o.vol) FB[k]=o; } });
+    if(!store(KEYS.logs,L) || !store(KEYS.lifts,X) || !store(KEYS.fb,FB)) return;
+    logs=L; lifts=X; feedback=FB;
     if(P){ profile=P; store(KEYS.profile,profile); }
     if(d.prefs && typeof d.prefs==="object"){ prefs={liftTime:d.prefs.liftTime||prefs.liftTime, dur:Number(d.prefs.dur)||prefs.dur}; store(KEYS.prefs,prefs); }
     draft=null; applyUnits(); syncFuelInputs(); form=fromLog(form.date);
@@ -1659,7 +1730,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
 function askReset(){ document.getElementById("confirmReset").classList.add("show"); }
 function doReset(){
   [...Object.values(KEYS),"tc.swaps"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(_){} }); daySwaps={};
-  profile=null; logs={}; lifts={}; prefs={liftTime:"17:30", dur:75}; draft=null; form=blankForm(localDate(new Date()));
+  profile=null; logs={}; lifts={}; feedback={}; prefs={liftTime:"17:30", dur:75}; draft=null; form=blankForm(localDate(new Date()));
   document.getElementById("confirmReset").classList.remove("show");
   showView("setup"); toast("All data erased");
 }
@@ -1696,7 +1767,7 @@ function banner(html){ const b=document.getElementById("banner"); if(!html){ b.s
 // other tabs/windows of the app stay in sync
 window.addEventListener("storage", e=>{
   if(!Object.values(KEYS).includes(e.key)) return;
-  profile=load(KEYS.profile,null); logs=load(KEYS.logs,{}); lifts=load(KEYS.lifts,{}); prefs=Object.assign({liftTime:"17:30",dur:75}, load(KEYS.prefs,{}));
+  profile=load(KEYS.profile,null); logs=load(KEYS.logs,{}); lifts=load(KEYS.lifts,{}); prefs=Object.assign({liftTime:"17:30",dur:75}, load(KEYS.prefs,{})); feedback=load(KEYS.fb,{});
   if(!dirty) form=fromLog(form.date);
   showView(profile ? view : "setup");
 });
