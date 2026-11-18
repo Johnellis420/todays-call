@@ -280,6 +280,20 @@
   .pbar i{display:block;height:100%;background:var(--accent)}
   .bpop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:24px}
   .bpop.hide{display:none}
+  .gpop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;justify-content:center;z-index:48;padding:16px}
+  .gpop.hide{display:none}
+  .gcard{background:var(--panel);border:1px solid #33373d;border-radius:22px;padding:20px 20px 16px;max-width:420px;width:100%;max-height:88vh;overflow:auto;animation:gin .3s ease-out}
+  @keyframes gin{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
+  .gtop{display:flex;justify-content:space-between;align-items:center;font:600 12px Inter;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+  .gtop button{background:none;border:0;color:var(--muted);font:600 14px Inter;cursor:pointer;padding:4px 0 4px 10px}
+  .gicon{font-size:52px;line-height:1;margin:14px 0 6px}
+  .gtitle{font-family:"Barlow Condensed";font-size:30px;font-weight:800;text-transform:uppercase;line-height:1.05}
+  .gwhere{font-size:12.5px;color:var(--accent);font-weight:600;margin:4px 0 8px}
+  .gbody{font-size:14.5px;line-height:1.5;color:#d6d9dd}
+  .gbody ul{margin:8px 0 0;padding-left:18px}.gbody li{margin:5px 0}
+  .gdots{display:flex;gap:6px;justify-content:center;margin:16px 0 12px}
+  .gdots i{width:7px;height:7px;border-radius:50%;background:#3a3f45}.gdots i.on{background:var(--accent);width:18px;border-radius:4px}
+  .gnav{display:flex;gap:8px}.gnav .btn{margin:0}
   .bcard{background:var(--panel);border:1px solid #6b5320;border-radius:22px;padding:24px 22px 18px;text-align:center;max-width:340px;width:100%;animation:bpopin .45s cubic-bezier(.2,1.4,.4,1)}
   @keyframes bpopin{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
   .bicon{font-size:72px;line-height:1;animation:bspin .9s ease-out}
@@ -574,6 +588,11 @@
     <div id="stSwaps"></div>
   </div>
   <div class="card">
+    <label class="l">How it works</label>
+    <p class="muted" style="font-size:13.5px;margin:0 0 10px">A 1-minute tour of check-ins, plans, logging, feedback, the timer and badges.</p>
+    <button class="btn ghost" style="height:46px;margin:0" onclick="openGuide(false)">Show the guide</button>
+  </div>
+  <div class="card">
     <label class="l">Backup</label>
     <p class="muted" style="font-size:13.5px;margin:0 0 10px">Your data lives only on this phone. Save a backup now and then, and use it to move to a new phone.</p>
     <div class="row" style="gap:8px">
@@ -607,14 +626,21 @@
   <div class="bicon" id="bpIcon">🏅</div><div class="bkick">Badge unlocked</div>
   <div class="bname" id="bpName"></div><div class="bdesc" id="bpDesc"></div>
   <button class="btn" onclick="nextBadgePop()" id="bpBtn">Nice!</button></div></div>
+<div class="gpop hide" id="guide" role="dialog" aria-modal="true" aria-labelledby="gTitle"><div class="gcard">
+  <div class="gtop"><span id="gStep"></span><button type="button" onclick="closeGuide()">Skip</button></div>
+  <div class="gicon" id="gIcon"></div><div class="gtitle" id="gTitle"></div><div class="gwhere" id="gWhere"></div>
+  <div class="gbody" id="gBody"></div>
+  <div class="gdots" id="gDots"></div>
+  <div class="gnav"><button type="button" class="btn ghost" id="gBack" style="flex:1" onclick="guideGo(-1)">Back</button><button type="button" class="btn" id="gNext" style="flex:2" onclick="guideGo(1)">Next</button></div>
+</div></div>
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
-const APP_VERSION = "1.12.0";
+const APP_VERSION = "1.13.0";
 
 /* ================= storage (on this device only) ================= */
-const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
+const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
 let storageOK = true;
 function load(k, fallback){ try{ const v=localStorage.getItem(k); return v ? JSON.parse(v) : fallback; }catch(_){ storageOK=false; return fallback; } }
 function store(k, v){
@@ -1670,6 +1696,52 @@ function renderWeekWins(){
   el.innerHTML=`<div class="card wins"><label class="l" style="color:var(--ok)">This week 💪</label><ul>${(items.length?items:["Showing up is the win. Keep stacking check-ins."]).map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
 }
 
+/* ================= how-it-works guide ================= */
+const GUIDE_V=1;
+function guideSteps(returning){ const u=U(); return [
+  {icon:"👋", title: returning ? "Quick tour" : "Welcome to Today's Call", where:"1 minute",
+   body: returning ? "You've been using Today's Call. Here's a rundown of everything it does now, including the newer features. Skip anytime, and you can replay it from ⚙ Settings."
+                   : "Every morning the app makes one call for your training: <b>Rest</b>, <b>Hypertrophy</b> or <b>Heavy compound</b>. Then it builds your workout. Here's how to get the most out of it."},
+  {icon:"☀️", title:"Check in each morning", where:"Today tab",
+   body:"Log last night's sleep, sleep quality, energy and soreness. It takes about 20 seconds.<ul><li>You get a <b>readiness score (0–100)</b> and today's call.</li><li>It learns <b>your</b> normal: your real sleep need and your usual energy. The more days you check in, the more personal it gets.</li><li>Tap <b>Why this call</b> to see what drove it.</li></ul>"},
+  {icon:"📋", title:"Follow today's plan", where:"Today tab",
+   body:"Your workout comes with suggested weights.<ul><li>Tap <b>›</b> on an exercise to log it.</li><li>Did something different? Log it under your own name and the plan still gets its ✓.</li><li><b>⇄ Swap</b> finds alternatives for the equipment you have. <b>▶ How to</b> opens form videos.</li><li>After you've logged a split day once, the next plan is built from what you <b>actually did</b>.</li></ul>"},
+  {icon:"🏋️", title:"Log your sets", where:"Lifts tab",
+   body:`Enter weight (${u}), reps and sets, then <b>Add set</b>. Everything saves automatically.<ul><li>Tap a logged set to edit it. Use <b>×</b> or <b>🗑</b> to delete, with Undo if you slip.</li><li>Tap <b>Save workout</b> at the bottom when you're done.</li><li>Your wins (PRs, heavier weights, more reps) show as you go.</li></ul>`},
+  {icon:"💬", title:"Tell it how it went", where:"After your workout",
+   body:"A quick card asks how the session felt and what you want next time: <b>more or fewer sets</b>, or <b>more or fewer exercises</b>.<ul><li>Your next session of that split day adjusts to match.</li><li>Not sure which to pick? The card's <b>Which one?</b> guide explains.</li></ul>"},
+  {icon:"⏱", title:"Timer & fuel", where:"⏱ tab · Today tab",
+   body:"<ul><li>The workout timer starts on its own with your first set, and the ⏱ tab shows the time while it runs.</li><li>There's a rest timer with a beep for between sets.</li><li><b>Fuel timing</b> on Today shows when to eat around your lift time.</li></ul>"},
+  {icon:"🏅", title:"Watch yourself progress", where:"History tab",
+   body:"<ul><li><b>This week</b> shows your improvements.</li><li><b>Badges</b> go from your first workout to plate milestones, and all-time ones from an elephant 🐘 to the Eiffel Tower 🗼.</li><li><b>Progress</b> shows any lift or split day, split by heavy vs hypertrophy days.</li></ul>"},
+  {icon:"💾", title:"Back it up", where:"⚙ Settings",
+   body:"Your data stays only on this phone. There's no account and nothing is uploaded.<ul><li>Tap <b>Save backup</b> now and then. That file is how you move to a new phone.</li><li>Add the app to your home screen so it opens like a normal app.</li><li>You can replay this guide anytime in Settings.</li></ul>"}
+]; }
+let gIdx=0, gSteps=[], gAfter="";
+function openGuide(returning, after){ gSteps=guideSteps(returning); gIdx=0; gAfter=after||""; document.getElementById("guide").classList.remove("hide"); renderGuide(); }
+function renderGuide(){
+  const st=gSteps[gIdx], last=gIdx===gSteps.length-1;
+  document.getElementById("gStep").textContent=`${gIdx+1} of ${gSteps.length}`;
+  document.getElementById("gIcon").textContent=st.icon; document.getElementById("gTitle").textContent=st.title;
+  document.getElementById("gWhere").textContent=st.where; document.getElementById("gBody").innerHTML=st.body;
+  document.getElementById("gDots").innerHTML=gSteps.map((_,i)=>`<i class="${i===gIdx?"on":""}"></i>`).join("");
+  document.getElementById("gBack").style.visibility = gIdx ? "visible" : "hidden";
+  document.getElementById("gNext").textContent = last ? "Let's go 💪" : "Next";
+  const c=document.querySelector("#guide .gcard"); c.scrollTop=0; c.style.animation="none"; void c.offsetWidth; c.style.animation="";
+}
+function guideGo(d){ const n=gIdx+d; if(n>=gSteps.length){ closeGuide(); return; } gIdx=Math.max(0,n); renderGuide(); }
+function closeGuide(){
+  document.getElementById("guide").classList.add("hide"); store(KEYS.guide, {v:GUIDE_V, at:new Date().toISOString()}); if(gAfter){ toast(gAfter); gAfter=""; }
+  if(badgeQueue.length && document.getElementById("badgePop").classList.contains("hide")) nextBadgePop();
+}
+function guideOpen(){ return !document.getElementById("guide").classList.contains("hide"); }
+function maybeGuide(returning){ const g=load(KEYS.guide,null); if(profile && !(g && g.v>=GUIDE_V)) openGuide(returning); }
+(()=>{ let x0=null; const el=document.getElementById("guide");
+  el.addEventListener("touchstart",e=>{ x0=e.touches[0].clientX; },{passive:true});
+  el.addEventListener("touchend",e=>{ if(x0===null) return; const dx=e.changedTouches[0].clientX-x0; x0=null; if(Math.abs(dx)>60) guideGo(dx<0?1:-1); });
+  document.addEventListener("keydown",e=>{ if(!guideOpen()) return; if(e.key==="ArrowRight") guideGo(1); if(e.key==="ArrowLeft") guideGo(-1); if(e.key==="Escape") closeGuide(); });
+})();
+
 /* ================= milestone badges ================= */
 function weekKey(ds){ const [y,m,d]=ds.split("-").map(Number), t=new Date(y,m-1,d); const day=(t.getDay()+6)%7; t.setDate(t.getDate()-day); return localDate(t); }
 function longestRun(sortedDates){ let best=0, run=0, prev=null; sortedDates.forEach(d=>{ run = prev && shift(prev,1)===d ? run+1 : 1; best=Math.max(best,run); prev=d; }); return best; }
@@ -1736,7 +1808,7 @@ function checkBadges(){
     const first=!badgeState.init;
     const seeded=[...new Set([...(badgeState.seeded||[]), ...(first?fresh.map(b=>b.id):[])])];
     badgeState={earned, init:true, seeded}; store(KEYS.badges, badgeState);
-    if(!first && fresh.length){ badgeQueue.push(...fresh); if(document.getElementById("badgePop").classList.contains("hide")) nextBadgePop(); }
+    if(!first && fresh.length){ badgeQueue.push(...fresh); if(document.getElementById("badgePop").classList.contains("hide") && !guideOpen()) nextBadgePop(); }
     if(view==="hist") renderBadges();
     if(!first && fresh.length && view==="lifts") renderWinsCard("winsLifts", liftDate);
   }catch(_){}
@@ -2190,8 +2262,9 @@ function finishSetup(){
   profile={units:draft.units, goal:draft.goal, split, bw: bw>0?bw:"", sex:draft.sex||"na", cycle:cleanCycle(draft.cycle), equip:cleanEquip(draft.equip), swaps:{}, sleepNeed:draft.sleepNeed||DEFAULT_NEED, learn:true, acceptedAt:new Date().toISOString(), v:1};
   if(profile.sex==="male") profile.cycle.on=false;
   if(!store(KEYS.profile, profile)){ profile=null; return; }
-  draft=null; applyUnits(); syncFuelInputs(); showView("today"); toast("You're set. Do your first check-in");
+  draft=null; applyUnits(); syncFuelInputs(); showView("today");
   badgeState={earned:{}, init:false}; checkBadges();   // start fresh so the first workout gets celebrated
+  openGuide(false, "You're set. Do your first check-in ☀️");
 }
 function renderSettings(){
   if(!draft) draft={units:profile.units, goal:profile.goal, split:profile.split.map(d=>({...d}))};
@@ -2305,6 +2378,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     { const B={earned:{}, init:false}; if(d.badges && d.badges.earned && typeof d.badges.earned==="object") Object.keys(d.badges.earned).slice(0,200).forEach(k=>{ const v=d.badges.earned[k]; if(/^[a-z]+\d+$/.test(k) && okDate(String(v))) B.earned[k]=v; }); if(d.badges && Array.isArray(d.badges.seeded)) B.seeded=d.badges.seeded.filter(k=>typeof k==="string" && B.earned[k]); badgeState=B; store(KEYS.badges,B); }
     if(P){ profile=P; store(KEYS.profile,profile); }
     checkBadges();   // badges already earned in restored data are added quietly
+    maybeGuide(true);
     if(d.prefs && typeof d.prefs==="object"){ prefs={liftTime:d.prefs.liftTime||prefs.liftTime, dur:Number(d.prefs.dur)||prefs.dur}; store(KEYS.prefs,prefs); }
     draft=null; applyUnits(); syncFuelInputs(); form=fromLog(form.date);
     { const nl=Object.keys(L).length, nx=Object.keys(X).length; toast(`Restored ${nl} check-in${nl===1?"":"s"} and ${nx} lifting day${nx===1?"":"s"}`); }
@@ -2382,7 +2456,7 @@ form=fromLog(form.date);
 if(!storageOK || (()=>{ try{ localStorage.setItem("tc.test","1"); localStorage.removeItem("tc.test"); return false; }catch(_){ return true; } })())
   banner("This browser is blocking storage (private browsing?). Your entries won't be saved.");
 showView(profile ? "today" : "setup");
-autoStopStale(); syncTimerBar(); checkBadges();
+maybeGuide(true); autoStopStale(); syncTimerBar(); checkBadges();
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible"){ autoStopStale(); syncTimerBar(); renderRest(); } });
 </script>
 </body>
