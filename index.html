@@ -611,7 +611,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.11.0";
+const APP_VERSION = "1.12.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -1690,6 +1690,19 @@ function badgeStats(){
     rested:Object.keys(logs).filter(d=>logs[d].call==="rest" && logs[d].did==="Rest").length,
     dialed:Object.values(feedback).filter(f=>f && f.feel==="right").length };
 }
+// Lifetime weight lifted, Fitbit-style. Weights: African elephant ~6 t; T. rex ~9 t; US federal max gross for a semi 80,000 lb;
+// blue whale avg ~160 t (Guinness); Statue of Liberty 450,000 lb (NPS); 747-8 max takeoff 987,000 lb (Boeing);
+// Space Shuttle stack at liftoff 4.5M lb (NASA); Eiffel Tower 10,100 t (toureiffel.paris).
+const LIFETIME=[
+  {icon:"🐘", name:"Elephant", what:"an African elephant", lb:13200, kg:6000},
+  {icon:"🦖", name:"T. rex", what:"a Tyrannosaurus rex", lb:19800, kg:9000},
+  {icon:"🚛", name:"Big rig", what:"a fully loaded semi truck", lb:80000, kg:36300},
+  {icon:"🐋", name:"Blue whale", what:"a blue whale, the largest animal ever", lb:352000, kg:160000},
+  {icon:"🗽", name:"Lady Liberty", what:"the Statue of Liberty", lb:450000, kg:204000},
+  {icon:"✈️", name:"Jumbo jet", what:"a fully loaded Boeing 747-8 at takeoff", lb:987000, kg:447700},
+  {icon:"🚀", name:"Liftoff", what:"the Space Shuttle at liftoff, fuel and all", lb:4500000, kg:2041000},
+  {icon:"🗼", name:"Eiffel Tower", what:"the entire Eiffel Tower", lb:22267000, kg:10100000}
+];
 function badgeDefs(){
   const kg=U()==="kg", u=U();
   const tiers=(fam, icon, key, goals, name, desc)=>goals.map((g,i)=>({id:`${fam}${i}`, fam, tier:i, icon, key, goal:g, name:name(g,i), desc:desc(g,i)}));
@@ -1697,7 +1710,7 @@ function badgeDefs(){
   const plateName=["One-plate","Two-plate","Three-plate","Four-plate","Five-plate"];
   const big = n => n>=1e6 ? (n/1e6)+"M" : (n/1000)+"k";
   return [
-    ...tiers("work","🏋️","workouts",[1,10,25,50,100,250], g=>g===1?"First workout":`${g} workouts`, g=>g===1?"You logged your first session. That's the hardest one.":`${g} logged workouts. Consistency builds the body.`),
+    ...tiers("work","🏋️","workouts",[1,10,25,50,100,250,500,1000], g=>g===1?"First workout":`${g} workouts`, g=>g===1?"You logged your first session. That's the hardest one.":`${g} logged workouts. Consistency builds the body.`),
     ...tiers("ci","📅","ciStreak",[7,30], g=>`${g}-day check-in streak`, g=>`Checked in ${g} days in a row.`),
     ...tiers("wk","🔥","weeks",[4,12], g=>`${g}-week streak`, g=>`${g} weeks in a row with 3+ workouts.`),
     ...tiers("pr","🏆","prs",[1,10,25,50], g=>g===1?"First PR":`${g} PRs`, g=>g===1?"Your first personal record. Many more to come.":`${g} personal records set.`),
@@ -1705,7 +1718,7 @@ function badgeDefs(){
     ...tiers("bench","🛡️","bench",plates, (g,i)=>`${plateName[i]} bench`, g=>`Benched ${g} ${u}.`),
     ...tiers("squat","🦵","squat",plates, (g,i)=>`${plateName[i]} squat`, g=>`Squatted ${g} ${u}.`),
     ...tiers("dead","⚡","dead",kg?[60,100,140,180,220]:[135,225,315,405,495], (g,i)=>`${plateName[i]} deadlift`, g=>`Pulled ${g} ${u}.`),
-    ...tiers("vol","🧱","vol",kg?[50e3,250e3,500e3,2.5e6]:[100e3,500e3,1e6,5e6], g=>`${big(g)} ${u} lifted`, g=>`${g.toLocaleString()} ${u} moved in total.`),
+    ...LIFETIME.map((o,i)=>{ const g=kg?o.kg:o.lb; return {id:`life${i}`, fam:"life", tier:i, icon:o.icon, key:"vol", goal:g, name:o.name, desc:`${g.toLocaleString()} ${u} lifted all-time: as much as ${o.what}.`}; }),
     ...tiers("sleep","😴","sleepRun",[5,14], g=>`${g}-night sleep streak`, g=>`${g} nights in a row at or above your sleep need.`),
     ...tiers("rest","🧘","rested",[1,10], g=>g===1?"Listened to your body":"Recovery pro", g=>g===1?"Took the rest day when your body called for it.":"Took 10 called rest days. Smart training."),
     ...tiers("dial","🎯","dialed",[5], ()=>"Dialed in", ()=>"5 sessions rated Just right.")
@@ -1745,8 +1758,9 @@ function renderBadges(){
   fams.forEach(f=>{ const tiers=defs.filter(b=>b.fam===f); tiers.forEach(b=>{ if(E[b.id]) shown.push({...b, got:true}); }); const next=tiers.find(b=>!E[b.id]); if(next) shown.push({...next, got:false}); });
   shown.sort((a,b)=> (b.got-a.got) || (a.got ? (E[b.id]||"").localeCompare(E[a.id]||"") : (st[b.key]/b.goal)-(st[a.key]/a.goal)));
   const n=Object.keys(E).filter(k=>defs.some(b=>b.id===k)).length;
-  const fmtP=b=>{ const v=st[b.key]; return b.key==="vol" ? `${Math.round(v/1000).toLocaleString()}k / ${(b.goal/1000).toLocaleString()}k` : ["bench","squat","dead"].includes(b.key) ? (v>0?`best ${fmtW(v)} ${U()}`:"not logged yet") : `${Math.min(v,b.goal)}/${b.goal}`; };
+  const fmtP=b=>{ const v=st[b.key]; return b.key==="vol" ? `${(v>=1e6?(v/1e6).toFixed(1)+"M":Math.round(v/1000).toLocaleString()+"k")} / ${b.goal>=1e6?(b.goal/1e6).toLocaleString(undefined,{maximumFractionDigits:1})+"M":(b.goal/1000).toLocaleString(undefined,{maximumFractionDigits:1})+"k"}` : ["bench","squat","dead"].includes(b.key) ? (v>0?`best ${fmtW(v)} ${U()}`:"not logged yet") : `${Math.min(v,b.goal)}/${b.goal}`; };
   el.innerHTML=`<label class="l">Badges 🏅 <span style="color:var(--accent);text-transform:none;letter-spacing:0">${n} earned</span></label>
+    ${(()=>{ const lt=defs.filter(b=>b.fam==="life"), got=lt.filter(b=>E[b.id]).pop(), nx=lt.find(b=>!E[b.id]); return `<div class="sub" style="margin:2px 0 10px">All-time: <b>${Math.round(st.vol).toLocaleString()} ${U()}</b> lifted${got?` · more than ${esc(LIFETIME[got.tier].what)} ${got.icon}`:""}${nx?`<br>Next up: ${nx.icon} ${esc(nx.name)} at ${nx.goal.toLocaleString()} ${U()}`:" · you've lifted the Eiffel Tower 🗼"}</div>`; })()}
     <div class="bgrid">${shown.map(b=>`<div class="badge2 ${b.got?"got":"lock"}" onclick="badgeInfo('${b.id}')">
       <div class="i">${b.icon}</div><div class="n">${esc(b.name)}</div>
       ${b.got ? `<div class="d">${(badgeState.seeded||[]).includes(b.id) ? "✓ earned" : nice(E[b.id]).split(", ").slice(1).join(" ")}</div>` : `<div class="pbar"><i style="width:${Math.round(Math.min(1, st[b.key]/b.goal)*100)}%"></i></div><div class="d">${fmtP(b)}</div>`}
