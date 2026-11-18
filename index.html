@@ -257,6 +257,16 @@
   #saveWrap{margin-bottom:12px}
   .btn.saved{background:#1f3b2b;color:var(--ok);border:1px solid #2f6f4c}
   .card.pulse{border-color:var(--accent);box-shadow:0 0 0 3px rgba(242,165,65,.25);transition:box-shadow .3s}
+  .wins{background:linear-gradient(180deg,#14261b,var(--panel) 75%);border-color:#2f6f4c}
+  .wins ul{list-style:none;margin:6px 0 0;padding:0}
+  .wins li{padding:6px 0;font-size:14px;line-height:1.4;border-top:1px solid #23362a}
+  .wins li:first-child{border-top:0}
+  .wins li b{color:#c9f2d9}
+  .wins .sub{font-size:12.5px;color:var(--muted);margin-top:6px}
+  .goodnote{font-size:13px;color:var(--ok);margin:6px 0 0;font-weight:600}
+  .hpstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .tbadge{font:700 10px Inter;text-transform:uppercase;letter-spacing:.06em;padding:3px 6px;border-radius:5px;margin-right:6px}
+  .tbadge.heavy{background:#4d1d20;color:#ff7a7e} .tbadge.hyper{background:#4a3519;color:var(--hyper)}
   .startw{border:1px solid #2f6f4c;background:#1f2a22;color:#c9f2d9;font:700 14px Inter;border-radius:12px;padding:10px 14px;cursor:pointer;width:100%;margin:2px 0 10px}
   .wtime{font-size:13px;color:var(--muted);margin:-2px 0 10px}
   .wtime b{color:var(--text)}
@@ -408,6 +418,7 @@
     <div id="dayLifts"></div>
   </div>
   <div id="fbLifts"></div>
+  <div id="winsLifts"></div>
   <div id="saveWrap"></div>
 
   <div class="card">
@@ -438,12 +449,19 @@
 
 <!-- HISTORY -->
 <section id="viewHist" class="hide">
+  <div id="weekWins"></div>
   <div class="stats" id="stats"></div>
   <div class="card hide" id="cycleInsight"></div>
   <div class="card">
     <label class="l">Readiness, last 14 days</label>
     <div class="bars" id="bars"></div>
     <div class="bars-x" id="barsX"></div>
+  </div>
+  <div class="card" id="hpCard">
+    <label class="l" for="hpSel">Progress</label>
+    <select id="hpSel"></select>
+    <div class="seg2" id="hpMode" style="margin-top:8px"></div>
+    <div id="hpBody"></div>
   </div>
   <div class="card">
     <label class="l">Log</label>
@@ -568,7 +586,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.9.0";
+const APP_VERSION = "1.10.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", fb:"tc.feedback", sess:"tc.sessions"};
@@ -824,7 +842,7 @@ function renderCall(){
     <div class="big">${big}</div>
     <div class="split">${a.call==="rest"?"Next split day":"Today's split"}: <b>${esc(a.split)}</b>${a.streak?` · ${a.streak}-day streak`:""}</div>
     ${body}
-    ${cycleNote()}
+    ${cycleNote()}${goodNote(form.date)}
     <div class="meter"><i style="width:${a.score}%;background:${col}"></i>
       <span class="m1" style="left:${G.rest}%"></span><span class="m2" style="left:${G.heavy}%"></span></div>
     <div class="scoreline"><span>Readiness <b style="color:var(--text)">${a.score}</b>/100</span><span>rest &lt;${G.rest} · heavy ${G.heavy}+</span></div>
@@ -873,6 +891,7 @@ function renderHist(){
   }).join("");
   document.getElementById("barsX").innerHTML=days.map(d=>`<span>${Number(d.slice(8))}</span>`).join("");
   renderCycleInsight(keys);
+  renderWeekWins(); renderHistProgress();
   const ul=document.getElementById("hist");
   if(!keys.length){ ul.innerHTML=`<div class="empty-hist">No entries yet. Your first check-in will show up here.</div>`; return; }
   const lbl={rest:"Rest",hyper:"Hypertrophy",comp:"Heavy"};
@@ -1057,6 +1076,7 @@ function renderLifts(){
       <div class="confirm" id="confirmDelDay"><button onclick="document.getElementById('confirmDelDay').classList.remove('show')">Keep it</button><button class="danger" onclick="delDay()">Yes, delete ${(()=>{ const n=today.reduce((a,e)=>a+(e.s||1),0); return n+" set"+(n===1?"":"s"); })()}</button></div>`;
   }
   renderFeedback("fbLifts", liftDate);
+  renderWinsCard("winsLifts", liftDate);
   renderSaveBtn();
   renderProgress();
 }
@@ -1556,12 +1576,123 @@ function saveWorkout(){
   const s0=sessT[d]||{};
   saveSess({...sessT, [d]:{...s0, saved:{at:Date.now(), n}}});
   const time = s0.end || (sessT[d] && sessT[d].end) ? " · "+fmtDur((sessT[d].end)-(sessT[d].start)) : "";
+  const wn=winsFor(d).list.length, wtxt = wn ? ` · ${wn} win${wn===1?"":"s"} 🔥` : "";
   renderLifts();
   if(!feedback[d] || (!feedback[d].feel && !feedback[d].vol)){
-    toast(`Workout saved: ${ex} exercise${ex===1?"":"s"}, ${n} set${n===1?"":"s"}${time}. How did it feel?`);
+    toast(`Workout saved: ${ex} exercise${ex===1?"":"s"}, ${n} set${n===1?"":"s"}${time}${wtxt}. How did it feel?`);
     const fbEl=document.getElementById("fbLifts"); if(fbEl && fbEl.firstElementChild){ fbEl.scrollIntoView({behavior:"smooth", block:"center"}); fbEl.firstElementChild.classList.add("pulse"); setTimeout(()=>fbEl.firstElementChild && fbEl.firstElementChild.classList.remove("pulse"),1800); }
-  } else toast(`Workout saved: ${ex} exercise${ex===1?"":"s"}, ${n} set${n===1?"":"s"}${time}`);
+  } else toast(`Workout saved: ${ex} exercise${ex===1?"":"s"}, ${n} set${n===1?"":"s"}${time}${wtxt}`);
 }
+
+/* ================= wins (positive feedback) ================= */
+const volOf = sets => sets.reduce((a,e)=>a+e.w*e.r*(e.s||1),0);
+// compare each exercise on `date` with the previous time you did it
+function winsFor(date){
+  const out=[], names=[...new Set(liftEntries(date).map(e=>e.name))];
+  let prs=0, beat=0;
+  names.forEach(name=>{
+    const all=sessions(name), cur=all.find(x=>x.date===date), prior=all.filter(x=>x.date<date);
+    if(!cur || !prior.length) return;
+    const prev=prior[prior.length-1], best=Math.max(...prior.map(x=>x.best));
+    if(cur.best>0 && cur.best>best+0.01){ prs++; beat++; out.push(`<b>New PR</b> on ${esc(name)}: ${fmtW(cur.top.w)}×${cur.top.r}`); return; }
+    if(cur.top.w>prev.top.w && prev.top.w>0){ beat++; out.push(`<b>+${fmtW(Math.round((cur.top.w-prev.top.w)*10)/10)} ${U()}</b> on ${esc(name)} vs last time`); return; }
+    if(cur.top.w===prev.top.w && cur.top.r>prev.top.r){ beat++; const d=cur.top.r-prev.top.r; out.push(`<b>+${d} rep${d===1?"":"s"}</b> on ${esc(name)} at ${fmtW(cur.top.w)}`); return; }
+    const cv=volOf(cur.sets), pv=volOf(prev.sets);
+    if(pv>0 && cv>pv*1.02){ beat++; out.push(`<b>More volume</b> on ${esc(name)} (+${Math.round((cv/pv-1)*100)}%)`); }
+  });
+  // whole session vs last session of the same split day
+  const sp=splitOfDate(date); let dayUp=null;
+  if(sp){ const prevDay=Object.keys(lifts).filter(d=>d<date && splitOfDate(d)===sp && liftEntries(d).length).sort().pop();
+    if(prevDay){ const a=volOf(liftEntries(date)), b=volOf(liftEntries(prevDay)); if(b>0 && a>b*1.02){ dayUp=Math.round((a/b-1)*100); out.push(`<b>+${dayUp}% total volume</b> vs your last ${esc(sp)} day`); } } }
+  return {list:out, prs, beat, n:names.length, dayUp};
+}
+function renderWinsCard(id, date){
+  const el=document.getElementById(id); if(!el) return;
+  const w=winsFor(date);
+  if(!w.list.length){ el.innerHTML=""; return; }
+  el.innerHTML=`<div class="card wins"><label class="l" style="color:var(--ok)">${date===localDate(new Date())?"Today's":"This session's"} wins 🔥</label><ul>${w.list.slice(0,8).map(x=>`<li>${x}</li>`).join("")}</ul>
+    ${w.n?`<div class="sub">Beat last time on ${w.beat} of ${w.n} exercise${w.n===1?"":"s"}.</div>`:""}</div>`;
+}
+// short encouraging line for the Today card
+function goodNote(date){
+  const P=personal(date), notes=[];
+  const hOf=i=>{ const d=shift(date,-i); if(i===0 && form.date===date) return form.sleepH; const e=logs[d]; return e && typeof e.sleepH==="number" ? e.sleepH : null; };
+  const n3=[0,1,2].map(hOf).filter(x=>typeof x==="number");
+  if(n3.length===3 && n3.every(h=>h>=P.need)) notes.push("3 nights in a row at or above your sleep need. That's how gains stick.");
+  const a=assess(form);
+  if(a){ const past=Object.keys(logs).filter(d=>d<date && d>=shift(date,-14)).map(d=>logs[d].score).filter(x=>typeof x==="number");
+    if(past.length>=5 && a.score>Math.max(...past)) notes.push("Best readiness in 2 weeks. Make it count.");
+    else if(past.length>=5 && a.score>=past.reduce((x,y)=>x+y,0)/past.length+10) notes.push("Well above your usual readiness today."); }
+  return notes.length ? `<p class="goodnote">✓ ${notes[0]}</p>` : "";
+}
+function renderWeekWins(){
+  const el=document.getElementById("weekWins"), today=localDate(new Date());
+  const inRange=(d,a,b)=>d>shift(today,-a) && d<=shift(today,-b);
+  const days=(a,b)=>Object.keys(lifts).filter(d=>inRange(d,a,b) && liftEntries(d).length);
+  const thisW=days(7,0), lastW=days(14,7);
+  if(!thisW.length && !Object.keys(logs).some(d=>inRange(d,7,0))){ el.innerHTML=""; return; }
+  const avg=(arr)=>arr.length?arr.reduce((x,y)=>x+y,0)/arr.length:null;
+  const lv=(a,b,k)=>avg(Object.keys(logs).filter(d=>inRange(d,a,b)).map(d=>logs[d][k]).filter(x=>typeof x==="number"));
+  const prs=thisW.reduce((a,d)=>a+winsFor(d).prs,0);
+  const items=[];
+  if(thisW.length) items.push(`<b>${thisW.length} workout${thisW.length===1?"":"s"}</b> this week${lastW.length && thisW.length>lastW.length?` (up from ${lastW.length})`:""}`);
+  if(prs) items.push(`<b>${prs} PR${prs===1?"":"s"}</b> this week`);
+  const s1=lv(7,0,"sleepH"), s0=lv(14,7,"sleepH"); if(s1!=null && s0!=null && s1>=s0+0.25) items.push(`<b>Sleeping ${(s1-s0).toFixed(1)} h more</b> per night than last week`);
+  const r1=lv(7,0,"score"), r0=lv(14,7,"score"); if(r1!=null && r0!=null && r1>=r0+3) items.push(`<b>Readiness up ${Math.round(r1-r0)} points</b> on average vs last week`);
+  const v1=thisW.reduce((a,d)=>a+volOf(liftEntries(d)),0), v0=lastW.reduce((a,d)=>a+volOf(liftEntries(d)),0);
+  if(v0>0 && v1>v0*1.03) items.push(`<b>+${Math.round((v1/v0-1)*100)}% training volume</b> vs last week`);
+  el.innerHTML=`<div class="card wins"><label class="l" style="color:var(--ok)">This week 💪</label><ul>${(items.length?items:["Showing up is the win. Keep stacking check-ins."]).map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
+}
+
+/* ================= history: progress by exercise or split day ================= */
+let hpSel=null, hpMode="all";
+function dayType(d, sets){
+  const c=logs[d] && logs[d].call;
+  if(c==="comp") return "heavy";
+  if(c==="hyper"||c==="rest") return "hyper";
+  const top=sets && sets.length ? sets.reduce((a,e)=>e.w>a.w?e:a, sets[0]) : null;
+  return top && top.r<=6 ? "heavy" : "hyper";
+}
+function renderHistProgress(){
+  const sel=document.getElementById("hpSel"), body=document.getElementById("hpBody"), modeEl=document.getElementById("hpMode");
+  const exs=allNames(), days=[...new Set(Object.keys(lifts).filter(d=>liftEntries(d).length).map(splitOfDate).filter(Boolean))];
+  if(!exs.length){ document.getElementById("hpCard").classList.add("hide"); return; }
+  document.getElementById("hpCard").classList.remove("hide");
+  if(!hpSel || !( (hpSel.startsWith("ex:") && exs.includes(hpSel.slice(3))) || (hpSel.startsWith("day:") && days.includes(hpSel.slice(4))) )) hpSel="ex:"+exs[0];
+  sel.innerHTML=`<optgroup label="Exercises">${exs.map(n=>`<option value="ex:${esc(n)}" ${hpSel==="ex:"+n?"selected":""}>${esc(n)}</option>`).join("")}</optgroup>`+
+    (days.length?`<optgroup label="Whole split day">${days.map(n=>`<option value="day:${esc(n)}" ${hpSel==="day:"+n?"selected":""}>${esc(n)} (all exercises)</option>`).join("")}</optgroup>`:"");
+  segButtons(modeEl, [["heavy","Heavy days"],["hyper","Hypertrophy"],["all","All"]], hpMode, v=>{ hpMode=v; renderHistProgress(); });
+  let rows, metricLbl, unit;
+  if(hpSel.startsWith("ex:")){
+    const name=hpSel.slice(3);
+    rows=sessions(name).map(x=>({date:x.date, type:dayType(x.date,x.sets), best:x.best, top:x.top, vol:volOf(x.sets), setLoad:Math.max(...x.sets.map(e=>e.w*e.r)), txt:setsText(x.sets), maxReps:x.maxReps}));
+    const bw=rows.every(r=>r.best===0);
+    if(bw){ metricLbl="Best reps"; unit="reps"; rows.forEach(r=>r.m=r.maxReps); }
+    else if(hpMode==="hyper"){ metricLbl="Best set"; unit=U(); rows.forEach(r=>r.m=r.setLoad); }
+    else { metricLbl="Est. 1-rep max"; unit=U(); rows.forEach(r=>r.m=r.best); }
+  } else {
+    const sp=hpSel.slice(4);
+    rows=Object.keys(lifts).filter(d=>liftEntries(d).length && splitOfDate(d)===sp).sort().map(d=>{ const es=liftEntries(d); return {date:d, type:dayType(d,es), vol:volOf(es), m:volOf(es), txt:`${new Set(es.map(e=>e.name)).size} exercises · ${es.reduce((a,e)=>a+(e.s||1),0)} sets${sessT[d]&&sessT[d].end?" · "+fmtDur(sessT[d].end-sessT[d].start):""}`}; });
+    metricLbl="Session volume"; unit=U();
+  }
+  const f = hpMode==="all" ? rows : rows.filter(r=>r.type===hpMode);
+  if(!f.length){ body.innerHTML=`<div class="hint">No ${hpMode==="heavy"?"heavy":"hypertrophy"} days logged for this yet.</div>`; return; }
+  const first=f[0], last=f[f.length-1], best=f.reduce((a,r)=>r.m>a.m?r:a,f[0]);
+  const fmtM = v => unit==="reps" ? Math.round(v) : Math.round(v).toLocaleString();
+  let line="";
+  if(f.length>=2){ const d=last.m-first.m;
+    line = d>0 ? `<p class="goodnote">▲ ${fmtM(d)} ${unit} ${metricLbl.toLowerCase()} since ${nice(first.date)}. Keep it rolling 💪</p>`
+      : `<div class="delta">Holding steady since ${nice(first.date)}${isCut()?". On a cut, that's a win.":"."}</div>`; }
+  body.innerHTML=`<div class="hpstats">
+      <div class="stat"><div class="k">Latest ${metricLbl.toLowerCase()}</div><div class="v" style="font-size:22px">${fmtM(last.m)}<small> ${unit}</small></div></div>
+      <div class="stat"><div class="k">Best</div><div class="v" style="font-size:22px">${fmtM(best.m)}<small> ${unit}</small></div></div>
+      <div class="stat"><div class="k">Sessions</div><div class="v" style="font-size:22px">${f.length}</div></div></div>
+    ${line}
+    ${chartSVG(f.slice(-20), r=>r.m, unit)}
+    <ul class="sess">${f.slice(-8).reverse().map(r=>`<li onclick="showView('lifts');openLiftDay('${r.date}')" style="cursor:pointer"><span><span class="tbadge ${r.type}">${r.type==="heavy"?"Heavy":"Hyper"}</span>${nice(r.date)} ›</span><span>${esc(r.txt)}</span></li>`).join("")}</ul>
+    <div class="hint">${hpSel.startsWith("ex:") ? (metricLbl==="Best set" ? "Hypertrophy progress = your best set's weight × reps, so 155×13 beats 145×12 even on a shorter day." : metricLbl==="Best reps" ? "Bodyweight exercise: tracked by best reps." : "Estimated 1-rep max from your best set, so a 5-rep day and a 10-rep day compare fairly.") : "Session volume = weight × reps × sets across the whole day."} Heavy vs hypertrophy comes from that day's call (or from your reps if you didn't check in).</div>`;
+}
+document.getElementById("hpSel").addEventListener("change", e=>{ hpSel=e.target.value; renderHistProgress(); });
 
 /* ================= post-workout feedback ================= */
 const FEEL=[["easy","Too easy"],["right","Just right"],["tough","Tough"],["much","Too much"]];
@@ -1807,7 +1938,11 @@ function addSet(){
   const isPR = prior.length && weight>0 && e1rm(weight,r)>priorBest;
   const usualMax = prior.length ? Math.max(...prior.flatMap(x=>x.sets.map(e=>e.w))) : 0;
   const looksOff = usualMax>0 && weight > usualMax*1.8;
-  writeLifts(liftDate, [...liftEntries(liftDate), entry], looksOff ? null : (isPR ? `New PR on ${name}!` : `Added ${name} ${fmtW(weight)}×${r}`));
+  let msg = isPR ? `New PR on ${name}! 🔥` : `Added ${name} ${fmtW(weight)}×${r}`;
+  if(!isPR && prior.length){ const pt=prior[prior.length-1].top;
+    if(weight>pt.w && pt.w>0) msg=`Up ${fmtW(Math.round((weight-pt.w)*10)/10)} ${U()} from last time on ${name} 💪`;
+    else if(weight===pt.w && r>pt.r) msg=`${r-pt.r} more rep${r-pt.r===1?"":"s"} than last time on ${name} 👊`; }
+  writeLifts(liftDate, [...liftEntries(liftDate), entry], looksOff ? null : msg);
   if(looksOff) toastAction(`${fmtW(weight)} ${U()} is way above your usual ${fmtW(usualMax)}. Typo?`, "Fix", ()=>editSet(entry.id));
 }
 let editId=null;
