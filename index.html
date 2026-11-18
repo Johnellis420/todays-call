@@ -476,7 +476,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.4.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup"};
@@ -860,7 +860,7 @@ function setsText(sets){ return sets.map(e=>`${fmtW(e.w)}×${e.r}${e.s>1?" ×"+e
 function splitFor(date){ const did=logs[date]?.did; return (did && did!=="Rest") ? did : nextSplit(date); }
 
 function howTo(name){
-  const q=String(name).replace(/\bDB\b/g,"Dumbbell")+" exercise proper form";
+  const q=String(name).replace(/\bDB\b/g,"Dumbbell").replace(/\bKB\b/g,"Kettlebell")+" exercise proper form";
   return "https://www.youtube.com/results?search_query="+encodeURIComponent(q);
 }
 function howToBtn(name){ return `<a class="howb" href="${howTo(name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">▶ How to</a>`; }
@@ -960,12 +960,13 @@ function chartSVG(ss, metric, unit){
 }
 
 /* ================= exercise alternatives & equipment ================= */
-const EQUIP = [["barbell","Barbell & rack"],["dumbbell","Dumbbells"],["bench","Bench"],["cable","Cables"],["machine","Machines"],["bar","Pull-up / dip bar"],["bands","Bands"]];
-const EQ_LABEL = {barbell:"barbell",dumbbell:"dumbbells",bench:"bench",cable:"cable",machine:"machine",bar:"pull-up bar",bands:"bands"};
+const EQUIP = [["barbell","Barbell & rack"],["dumbbell","Dumbbells"],["kettlebell","Kettlebells"],["bench","Bench"],["cable","Cables"],["machine","Machines"],["bar","Pull-up / dip bar"],["bands","Bands"]];
+const EQ_LABEL = {barbell:"barbell",dumbbell:"dumbbells",kettlebell:"kettlebell",bench:"bench",cable:"cable",machine:"machine",bar:"pull-up bar",bands:"bands"};
 const EQUIP_PRESETS = [
-  ["Full gym",{barbell:true,dumbbell:true,bench:true,cable:true,machine:true,bar:true,bands:true}],
-  ["Dumbbells + bench",{barbell:false,dumbbell:true,bench:true,cable:false,machine:false,bar:false,bands:false}],
-  ["Home: bands + bodyweight",{barbell:false,dumbbell:false,bench:false,cable:false,machine:false,bar:false,bands:true}]
+  ["Full gym",{barbell:true,dumbbell:true,kettlebell:true,bench:true,cable:true,machine:true,bar:true,bands:true}],
+  ["Dumbbells + bench",{barbell:false,dumbbell:true,kettlebell:false,bench:true,cable:false,machine:false,bar:false,bands:false}],
+  ["Kettlebells",{barbell:false,dumbbell:false,kettlebell:true,bench:false,cable:false,machine:false,bar:false,bands:false}],
+  ["Home: bands + bodyweight",{barbell:false,dumbbell:false,kettlebell:false,bench:false,cable:false,machine:false,bar:false,bands:true}]
 ];
 // eq: what the exercise needs ([] = bodyweight). alts: best substitutes, in order.
 const EX = {
@@ -1066,12 +1067,55 @@ const EX = {
   "Machine Lateral Raise":{eq:["machine"],alts:["Lateral Raise","Cable Lateral Raise"]},
   "Band Lateral Raise":{eq:["bands"],alts:["Lateral Raise","Cable Lateral Raise"]}
 };
+// ---- kettlebell moves ----
+Object.assign(EX, {
+  "Kettlebell Swing":{eq:["kettlebell"],alts:["KB Romanian Deadlift","Cable Pull-Through","DB Romanian Deadlift","Glute Bridge"]},
+  "KB Goblet Squat":{eq:["kettlebell"],alts:["Goblet Squat","KB Front Squat","Back Squat","Bodyweight Squat"]},
+  "KB Front Squat":{eq:["kettlebell"],alts:["KB Goblet Squat","Back Squat","Goblet Squat"]},
+  "KB Deadlift":{eq:["kettlebell"],alts:["DB Deadlift","Deadlift","KB Romanian Deadlift"]},
+  "KB Romanian Deadlift":{eq:["kettlebell"],alts:["DB Romanian Deadlift","Romanian Deadlift","KB Single-Leg RDL"]},
+  "KB Single-Leg RDL":{eq:["kettlebell"],alts:["Single-Leg RDL","KB Romanian Deadlift"]},
+  "KB Reverse Lunge":{eq:["kettlebell"],alts:["Reverse Lunge","Bulgarian Split Squat","Walking Lunge"]},
+  "KB Glute Bridge":{eq:["kettlebell"],alts:["Glute Bridge","DB Hip Thrust","Hip Thrust"]},
+  "KB Calf Raise":{eq:["kettlebell"],alts:["DB Calf Raise","Single-Leg Calf Raise","Calf Raise"]},
+  "KB Floor Press":{eq:["kettlebell"],alts:["DB Bench Press","Push-up","Bench Press"]},
+  "KB Overhead Press":{eq:["kettlebell"],alts:["Standing DB Press","Overhead Press","Pike Push-up"]},
+  "KB Push Press":{eq:["kettlebell"],alts:["KB Overhead Press","Overhead Press","Standing DB Press"]},
+  "KB Halo":{eq:["kettlebell"],alts:["Band Pull-Apart","Lateral Raise"]},
+  "KB Row":{eq:["kettlebell"],alts:["DB Row","KB Gorilla Row","Band Row","Inverted Row"]},
+  "KB Gorilla Row":{eq:["kettlebell"],alts:["KB Row","Barbell Row","DB Row"]},
+  "KB High Pull":{eq:["kettlebell"],alts:["Face Pull","Band Face Pull","Rear Delt Fly"]},
+  "KB Pullover":{eq:["kettlebell","bench"],alts:["DB Pullover","Straight-Arm Pulldown"]},
+  "KB Curl":{eq:["kettlebell"],alts:["DB Curl","Band Curl","Hammer Curl"]},
+  "KB Overhead Tricep Extension":{eq:["kettlebell"],alts:["Overhead DB Extension","Band Overhead Extension","Close-Grip Push-up"]},
+  "KB Clean":{eq:["kettlebell"],alts:["Kettlebell Swing","KB High Pull"]},
+  "KB Snatch":{eq:["kettlebell"],alts:["Kettlebell Swing","KB Clean"]},
+  "Turkish Get-up":{eq:["kettlebell"],alts:["KB Halo","Pike Push-up"]}
+});
+const KB_ALTS = {
+  "Bench Press":["KB Floor Press"],"DB Bench Press":["KB Floor Press"],"Machine Chest Press":["KB Floor Press"],"Push-up":["KB Floor Press"],
+  "Back Squat":["KB Goblet Squat"],"Hack Squat":["KB Goblet Squat"],"Leg Press":["KB Goblet Squat"],"Goblet Squat":["KB Goblet Squat"],"Bodyweight Squat":["KB Goblet Squat"],
+  "Bulgarian Split Squat":["KB Reverse Lunge"],"Reverse Lunge":["KB Reverse Lunge"],"Walking Lunge":["KB Reverse Lunge"],
+  "Deadlift":["KB Deadlift"],"Trap Bar Deadlift":["KB Deadlift"],"DB Deadlift":["KB Deadlift"],
+  "Romanian Deadlift":["KB Romanian Deadlift","Kettlebell Swing"],"DB Romanian Deadlift":["KB Romanian Deadlift"],"Single-Leg RDL":["KB Single-Leg RDL"],
+  "Cable Pull-Through":["Kettlebell Swing"],"Back Extension":["Kettlebell Swing"],"Leg Curl":["KB Romanian Deadlift"],
+  "Hip Thrust":["KB Glute Bridge"],"DB Hip Thrust":["KB Glute Bridge"],"Hip Thrust Machine":["KB Glute Bridge"],"Glute Bridge":["KB Glute Bridge"],
+  "Calf Raise":["KB Calf Raise"],"DB Calf Raise":["KB Calf Raise"],
+  "Overhead Press":["KB Overhead Press"],"Seated DB Press":["KB Overhead Press"],"Standing DB Press":["KB Overhead Press"],"Machine Shoulder Press":["KB Overhead Press"],
+  "Barbell Row":["KB Row"],"DB Row":["KB Row"],"Seated Cable Row":["KB Row"],"Machine Row":["KB Row"],"Band Row":["KB Row"],
+  "Face Pull":["KB High Pull"],"Rear Delt Fly":["KB High Pull"],
+  "DB Pullover":["KB Pullover"],"Straight-Arm Pulldown":["KB Pullover"],
+  "Barbell Curl":["KB Curl"],"DB Curl":["KB Curl"],"Cable Curl":["KB Curl"],"Hammer Curl":["KB Curl"],
+  "Overhead DB Extension":["KB Overhead Tricep Extension"],"Tricep Pushdown":["KB Overhead Tricep Extension"],"Skull Crusher":["KB Overhead Tricep Extension"],"Overhead Tricep Extension":["KB Overhead Tricep Extension"]
+};
+Object.entries(KB_ALTS).forEach(([k,v])=>{ if(EX[k]) v.forEach(a=>{ if(!EX[k].alts.includes(a)) EX[k].alts.push(a); }); });
 const exKey = n => Object.keys(EX).find(k=>k.toLowerCase()===String(n).toLowerCase());
-const equip = () => Object.assign({barbell:true,dumbbell:true,bench:true,cable:true,machine:true,bar:true,bands:true}, (profile&&profile.equip)||{});
+function withKbDefault(e){ const o=Object.assign({barbell:true,dumbbell:true,bench:true,cable:true,machine:true,bar:true,bands:true}, e||{}); if(!("kettlebell" in o)) o.kettlebell = !e || Object.values(e).every(Boolean); return o; }
+const equip = () => withKbDefault(profile && profile.equip);
 function hasEq(name){ const k=exKey(name); if(!k) return true; const E=equip(); return EX[k].eq.every(e=>E[e]!==false); }
 function altsFor(name){ const k=exKey(name); return k ? EX[k].alts : []; }
 function eqText(name){ const k=exKey(name); if(!k) return ""; const e=EX[k].eq; return e.length ? e.map(x=>EQ_LABEL[x]).join(" + ") : "bodyweight"; }
-function autoAlt(name){ return altsFor(name).find(a=>hasEq(a)) || name; }
+function autoAlt(name){ const ok=altsFor(name).filter(a=>hasEq(a)); return ok.find(a=>EX[exKey(a)].eq.length) || ok[0] || name; }
 let daySwaps = load("tc.swaps", {});   // date -> {original: replacement}
 function resolveName(orig, date, mine){
   const d=(daySwaps[date]||{})[orig]; if(d) return d;
@@ -1096,7 +1140,7 @@ function pickSwap(i, alt){
   toast(alt===orig ? "Back to "+orig : (remember ? `Always ${alt} instead of ${orig}` : `Swapped to ${alt} for today`));
 }
 function renderEquip(prefix, obj, onChange){
-  const E=Object.assign({barbell:true,dumbbell:true,bench:true,cable:true,machine:true,bar:true,bands:true}, obj.equip||{});
+  const E=withKbDefault(obj.equip);
   const box=document.getElementById(prefix+"Equip");
   const match=EQUIP_PRESETS.findIndex(([,v])=>EQUIP.every(([k])=>!!v[k]===!!E[k]));
   box.innerHTML=`<div class="chips">${EQUIP_PRESETS.map(([n],i)=>`<button type="button" class="${i===match?"on":""}" data-p="${i}">${n}</button>`).join("")}</div>
@@ -1476,7 +1520,7 @@ function renderAboutYou(prefix, obj, onChange){
   num(prefix+"CycLen",21,45,"len"); num(prefix+"CycPlen",2,10,"plen");
   box.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{ c.starts=c.starts.filter(d=>d!==b.dataset.rm); onChange(); });
 }
-function cleanEquip(e){ const o={}; EQUIP.forEach(([k])=>{ o[k] = !(e && e[k]===false); }); return o; }
+function cleanEquip(e){ const d=withKbDefault(e), o={}; EQUIP.forEach(([k])=>{ o[k] = !!d[k]; }); return o; }
 function cleanSwaps(sw){ const o={}; if(sw && typeof sw==="object") Object.keys(sw).slice(0,100).forEach(k=>{ if(typeof sw[k]==="string") o[String(k).slice(0,60)]=sw[k].slice(0,60); }); return o; }
 function cleanCycle(c){
   if(!c || typeof c!=="object") return defaultCycle();
