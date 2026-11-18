@@ -478,7 +478,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.5.1";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup"};
@@ -825,6 +825,7 @@ function openDay(d){ form=fromLog(d); dirty=false; showView("today"); renderForm
 
 function showView(v){
   if(!profile && v!=="setup") v="setup";
+  if(v!=="lifts") planCtx=null;
   view=v;
   for(const [id,tab,name] of [["viewToday","tabToday","today"],["viewLifts","tabLifts","lifts"],["viewHist","tabHist","hist"],["viewSettings","tabSet","settings"],["viewSetup",null,"setup"]]){
     document.getElementById(id).classList.toggle("hide", v!==name);
@@ -1279,6 +1280,7 @@ function renderPlan(a){
   }
   const plan=buildPlan(form.date, a.split, call);
   const done=new Set(liftEntries(form.date).map(e=>e.name.toLowerCase()));
+  const doneAs={}; liftEntries(form.date).forEach(e=>{ if(e.forPlan) doneAs[e.forPlan.toLowerCase()]=e.name; });
   const src = plan.mine ? (plan.trimmed ? `Heavy day: your main lifts from last ${esc(a.split)} day (${nice(plan.last)}), trimmed down. The other ${plan.trimmed} are under ⇄ Swap if you have gas left.` : `What you did last ${esc(a.split)} day (${nice(plan.last)}). Anything you add or drop carries into next time.`)
     : `Starter template. Once you log a ${esc(a.split)} session, the plan becomes what you actually did.`;
   const anyMissing=plan.items.some(i=>!i.st);
@@ -1292,8 +1294,9 @@ function renderPlan(a){
       const alts=[...new Set([...(it.name!==it.orig?[it.orig]:[]), ...mineAlts, ...libAlts])].slice(0,7);
       const mineSet=new Set(mineAlts);
       return `<div class="px" onclick="openLift(${i})">
-        <div class="i ${done.has(it.name.toLowerCase())?"done":""}">${done.has(it.name.toLowerCase())?"✓":i+1}</div>
-        <div><div class="nm">${esc(it.name)}</div>${it.name!==it.orig?`<div class="was">instead of ${esc(it.orig)}</div>`:""}<div class="rx">${it.txt}</div>
+        ${(()=>{ it.subAs = doneAs[it.orig.toLowerCase()] || doneAs[it.name.toLowerCase()] || null; it.isDone = done.has(it.name.toLowerCase()) || !!it.subAs; return ""; })()}
+        <div class="i ${it.isDone?"done":""}">${it.isDone?"✓":i+1}</div>
+        <div><div class="nm">${esc(it.name)}</div>${it.name!==it.orig?`<div class="was">instead of ${esc(it.orig)}</div>`:""}${it.subAs && !done.has(it.name.toLowerCase())?`<div class="was" style="color:var(--ok)">✓ Done as ${esc(it.subAs)}</div>`:""}<div class="rx">${it.txt}</div>
           ${it.st?`<div class="ls">Last: ${esc(setsText(it.st.last.sets))} (${nice(it.st.last.date)})</div>`:""}
           <div class="acts">${howToBtn(it.name)}${alts.length?`<button type="button" class="swapb ${openSwap===i?"on":""}" onclick="event.stopPropagation();toggleSwap(${i})">⇄ Swap</button>`:""}</div></div>
         <div class="go">›</div>
@@ -1306,9 +1309,11 @@ function renderPlan(a){
   </div>`;
   currentPlan=plan;
 }
+let planCtx=null;   // the plan slot you opened from Today, so a substitute you log counts for it
 function openLift(i){
   const it=currentPlan?.items[i]; if(!it) return;
   liftDate=form.date; showView("lifts");
+  planCtx={date:form.date, slot:it.orig, name:it.name, planNames:currentPlan.items.map(x=>x.name.toLowerCase())};
   document.getElementById("exName").value=it.name;
   document.getElementById("wIn").value = it.w!=null ? it.w : (it.bw?0:"");
   document.getElementById("rIn").value = it.rx.reps;
@@ -1435,11 +1440,12 @@ function addSet(){
   const prior=sessions(name).filter(x=>x.date<liftDate);
   const priorBest=prior.length?Math.max(...prior.map(x=>x.best)):0;
   const entry={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), name, w:weight, r, s:Math.min(10,Math.max(1,s))};
+  if(planCtx && planCtx.date===liftDate && !planCtx.planNames.includes(name.toLowerCase())) entry.forPlan=planCtx.slot;
   const isPR = prior.length && weight>0 && e1rm(weight,r)>priorBest;
   writeLifts(liftDate, [...liftEntries(liftDate), entry], isPR ? `New PR on ${name}!` : `Added ${name} ${fmtW(weight)}×${r}`);
 }
 function delSet(id){ writeLifts(liftDate, liftEntries(liftDate).filter(e=>e.id!==id), "Set removed"); }
-document.getElementById("liftDate").addEventListener("change",e=>{ if(e.target.value){ liftDate=e.target.value; renderLifts(); } });
+document.getElementById("liftDate").addEventListener("change",e=>{ if(e.target.value){ liftDate=e.target.value; planCtx=null; renderLifts(); } });
 document.getElementById("exName").addEventListener("input",()=>renderLastTime());
 document.getElementById("exName").addEventListener("change",e=>{ prefill(e.target.value); renderLastTime(); });
 document.getElementById("progSel").addEventListener("change",e=>{ progName=e.target.value; renderProgress(); });
@@ -1601,7 +1607,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     if(!d || d.app!=="todays-call" || typeof d.logs!=="object" || typeof d.lifts!=="object") throw 0;
     const okDate=k=>/^\d{4}-\d{2}-\d{2}$/.test(k);
     const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object") L[k]=d.logs[k]; });
-    const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>({id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1})); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
+    const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1}; if(typeof e.forPlan==="string") o.forPlan=e.forPlan.slice(0,60); return o; }); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
     const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps)} : profile;
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X)) return;
     logs=L; lifts=X;
