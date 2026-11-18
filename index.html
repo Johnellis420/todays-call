@@ -152,6 +152,9 @@
   .set.pr{border-color:#6b5320;background:#2a2112}
   .set .pr-t{font:700 10px Inter;color:var(--hyper);letter-spacing:.06em}
   .set{cursor:pointer}
+  .ex .exr{display:flex;align-items:center;gap:8px}
+  .trash{border:1px solid var(--line);background:var(--panel2);border-radius:10px;width:34px;height:30px;font-size:14px;cursor:pointer;line-height:1}
+  .delday{margin-top:12px;color:#ff8f93;border-color:#5a2426}
   .set.editing{border-color:var(--accent)}
   .seted{background:#15171a;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px}
   .toast.act{pointer-events:auto;display:flex;align-items:center;gap:12px;white-space:nowrap}
@@ -497,7 +500,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.7.1";
+const APP_VERSION = "1.7.2";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", fb:"tc.feedback"};
@@ -934,7 +937,7 @@ function renderLifts(){
       const priorBest=prior.length?Math.max(...prior.map(s=>s.best)):0;
       const prBest=Math.max(...sets.map(e=>e1rm(e.w,e.r)));
       const vol=sets.reduce((a,e)=>a+e.w*e.r*e.s,0);
-      return `<div class="ex"><div class="n">${esc(name)}<small>${vol>0?Math.round(vol).toLocaleString()+" "+U()+" volume":""}</small></div><div class="sets">`+
+      return `<div class="ex"><div class="n"><span>${esc(name)}</span><span class="exr"><small>${vol>0?Math.round(vol).toLocaleString()+" "+U()+" volume":""}</small><button type="button" class="trash" aria-label="Remove ${esc(name)}" onclick="delExercise('${jsq(name)}')">🗑</button></span></div><div class="sets">`+
         sets.map(e=>{ const isPR = prior.length && e.w>0 && e1rm(e.w,e.r)>priorBest && e1rm(e.w,e.r)===prBest;
           return `<span class="set ${isPR?"pr":""} ${editId===e.id?"editing":""}" onclick="editSet('${jsq(e.id)}')">${fmtW(e.w)} × ${e.r}${e.s>1?` <span class="muted">×${e.s}</span>`:""}${isPR?` <span class="pr-t">PR</span>`:""}<button aria-label="Remove set" onclick="event.stopPropagation();delSet('${jsq(e.id)}')">×</button></span>`; }).join("")+
         `</div>${(()=>{ const e=sets.find(x=>x.id===editId); if(!e) return "";
@@ -947,7 +950,9 @@ function renderLifts(){
               <button class="btn" style="height:42px;font-size:14px" onclick="saveEdit()">Save</button>
               <button class="btn ghost" style="height:42px;margin:0;color:#ff8f93;border-color:#5a2426" onclick="delSet('${jsq(e.id)}')">Delete</button>
               <button class="btn ghost" style="height:42px;margin:0" onclick="editId=null;renderLifts()">Cancel</button></div></div>`; })()}</div>`;
-    }).join("") + `<div class="hint">Tap a set to fix it, or × to remove it.</div>`;
+    }).join("") + `<div class="hint">Tap a set to fix it, × removes one set, 🗑 removes the whole exercise.</div>
+      <button class="btn ghost delday" onclick="askDelDay()">Delete this whole workout</button>
+      <div class="confirm" id="confirmDelDay"><button onclick="document.getElementById('confirmDelDay').classList.remove('show')">Keep it</button><button class="danger" onclick="delDay()">Yes, delete ${(()=>{ const n=today.reduce((a,e)=>a+(e.s||1),0); return n+" set"+(n===1?"":"s"); })()}</button></div>`;
   }
   renderFeedback("fbLifts", liftDate);
   renderProgress();
@@ -1591,6 +1596,24 @@ function delSet(id){
     writeLifts(date, back, "Set restored");
   });
 }
+function delExercise(name){
+  const date=liftDate, list=liftEntries(date), k=name.toLowerCase();
+  const gone=list.filter(e=>e.name.toLowerCase()===k); if(!gone.length) return;
+  editId=null; writeLifts(date, list.filter(e=>e.name.toLowerCase()!==k));
+  const ns=gone.reduce((a,e)=>a+(e.s||1),0);
+  toastAction(`Removed ${name} (${ns} set${ns===1?"":"s"})`, "Undo", ()=>{ writeLifts(date, [...liftEntries(date).filter(e=>!gone.some(g=>g.id===e.id)), ...gone].sort((a,b)=>list.indexOf(a)-list.indexOf(b)), "Restored"); });
+}
+function askDelDay(){ document.getElementById("confirmDelDay").classList.add("show"); }
+function delDay(){
+  const date=liftDate, list=liftEntries(date); if(!list.length) return;
+  const fbWas=feedback[date];
+  editId=null; writeLifts(date, []);
+  if(fbWas){ const n={...feedback}; delete n[date]; if(store(KEYS.fb,n)) feedback=n; }
+  toastAction(`Deleted the ${nice(date)} workout`, "Undo", ()=>{
+    writeLifts(date, list, "Workout restored");
+    if(fbWas){ const n={...feedback,[date]:fbWas}; if(store(KEYS.fb,n)) feedback=n; renderLifts(); }
+  });
+}
 function openLiftDay(d){ liftDate=d; editId=null; planCtx=null; renderLifts(); window.scrollTo({top:document.getElementById("dayLifts").offsetTop-120, behavior:"smooth"}); }
 document.getElementById("liftDate").addEventListener("change",e=>{ if(e.target.value){ liftDate=e.target.value; planCtx=null; editId=null; renderLifts(); } });
 document.getElementById("exName").addEventListener("input",()=>renderLastTime());
@@ -1762,7 +1785,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     if(P){ profile=P; store(KEYS.profile,profile); }
     if(d.prefs && typeof d.prefs==="object"){ prefs={liftTime:d.prefs.liftTime||prefs.liftTime, dur:Number(d.prefs.dur)||prefs.dur}; store(KEYS.prefs,prefs); }
     draft=null; applyUnits(); syncFuelInputs(); form=fromLog(form.date);
-    toast(`Restored ${Object.keys(L).length} check-ins and ${Object.keys(X).length} lifting days`);
+    { const nl=Object.keys(L).length, nx=Object.keys(X).length; toast(`Restored ${nl} check-in${nl===1?"":"s"} and ${nx} lifting day${nx===1?"":"s"}`); }
     showView(profile?"today":"setup");
   }catch(_){ toast("That file isn't a Today's Call backup"); }
 });
