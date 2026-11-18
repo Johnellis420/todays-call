@@ -195,6 +195,7 @@
   .phbars .t i{display:block;height:100%;background:#d9667f;border-radius:5px}
   .phbars .r b{text-align:right}
   .pd{color:#ff9fb1;font-weight:600}
+  .pv{color:var(--faint);font-weight:500}
   .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .acts .swapb{margin-top:0}
   .howb{display:inline-block;border:1px solid #5a2426;background:#2a1314;color:#ff8f93;font:600 12px Inter;border-radius:999px;padding:5px 10px;text-decoration:none}
@@ -476,6 +477,11 @@
     <div id="suSplit"></div>
   </div>
   <div class="card">
+    <label class="l">How much sleep do you need to feel good?</label>
+    <div class="stepper"><button type="button" onclick="bumpNeed('su',-0.5)">−</button><div class="val"><span id="suNeed">7.5</span><small>hrs</small></div><button type="button" onclick="bumpNeed('su',0.5)">+</button></div>
+    <div class="hint">Everyone's different. Your best guess is fine: the app fine-tunes this from your check-ins.</div>
+  </div>
+  <div class="card">
     <label class="l">Equipment you have</label>
     <div id="suEquip"></div>
   </div>
@@ -516,6 +522,14 @@
     <div class="hint">Renaming a day starts that day's exercise history fresh. Your logged lifts are kept.</div>
   </div>
   <div class="card">
+    <label class="l">Your sleep &amp; readiness</label>
+    <span class="lbl" style="display:block;font-size:11px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px" id="stNeedLbl">Sleep you need</span>
+    <div class="stepper"><button type="button" onclick="bumpNeed('st',-0.5)">−</button><div class="val"><span id="stNeed">7.5</span><small>hrs</small></div><button type="button" onclick="bumpNeed('st',0.5)">+</button></div>
+    <span class="lbl" style="display:block;font-size:11px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px">Learn from my check-ins</span>
+    <div class="seg2" id="stLearn"></div>
+    <div class="hint" id="stLearnInfo"></div>
+  </div>
+  <div class="card">
     <label class="l">Equipment you have</label>
     <div id="stEquip"></div>
     <div id="stSwaps"></div>
@@ -554,7 +568,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.9.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", fb:"tc.feedback", sess:"tc.sessions"};
@@ -713,22 +727,53 @@ function sleepAvg(date, days){
   const v=[]; for(let i=1;i<days;i++){ const e=logs[shift(date,-i)]; if(e && typeof e.sleepH==="number") v.push(e.sleepH); }
   return v;
 }
+/* ---- personal baseline: learns your sleep need and your "normal" energy and soreness ---- */
+const DEFAULT_NEED = 7.5;
+function personal(before){
+  const manual = Number(profile && profile.sleepNeed) || DEFAULT_NEED;
+  const learnOn = !(profile && profile.learn===false);
+  const cutoff = shift(before, -90);
+  const hist = Object.keys(logs).filter(d=>d<before && d>=cutoff).sort().map(d=>logs[d]).filter(e=>typeof e.sleepH==="number" && e.energy!=null && e.sore!=null);
+  // nights before days you felt good (energy 4+, sleep quality 3+)
+  const good = hist.filter(e=>e.energy>=4 && (e.sleepQ||0)>=3).map(e=>e.sleepH).sort((a,b)=>a-b);
+  let learned=null;
+  if(good.length>=5){ const mid=good[Math.floor(good.length/2)]; learned=Math.max(5, Math.min(10, Math.round(mid*4)/4)); }
+  const w = learnOn && learned!=null ? Math.min(1, good.length/15) : 0;
+  const need = Math.round((manual*(1-w) + (learned??manual)*w)*4)/4;
+  // your usual energy and soreness (last 28 check-ins)
+  const recent=hist.slice(-28);
+  const stats = k => { const v=recent.map(e=>e[k]); const m=v.reduce((a,b)=>a+b,0)/v.length; const sd=Math.sqrt(v.reduce((a,b)=>a+(b-m)*(b-m),0)/v.length); return {m, sd}; };
+  const base = learnOn && recent.length>=10 ? {energy:stats("energy"), sore:stats("sore"), n:recent.length} : null;
+  return {need, manual, learned, goodN:good.length, w, base, learnOn};
+}
+function sleepPts(h, need){
+  const d=need-h;
+  return d<=0?30 : d<=0.5?26 : d<=1?20 : d<=1.5?14 : d<=2?9 : d<=3?5 : 2;
+}
+// 0..1 for a 1-5 rating, half absolute and half against your own usual
+function relScore(x, b, invert){
+  const abs = invert ? (5-x)/4 : (x-1)/4;
+  if(!b) return abs;
+  const z = (x-b.m)/Math.max(b.sd,0.6);
+  const rel = Math.max(0, Math.min(1, 0.5 + (invert?-z:z)/4));
+  return 0.5*abs + 0.5*rel;
+}
 function assess(f){
   if(f.sleepQ==null || f.sore==null || f.energy==null) return null;
   const why=[]; let s=0;
-  const h=f.sleepH;
-  const sp = h>=8?30 : h>=7.5?28 : h>=7?24 : h>=6.5?19 : h>=6?14 : h>=5?8 : 3;
-  s+=sp; why.push(["Sleep "+h.toFixed(1)+" h", "+"+sp+" / 30", sp>=24?"pos":sp<14?"neg":""]);
+  const h=f.sleepH, P=personal(f.date);
+  const sp = sleepPts(h, P.need);
+  s+=sp; why.push([`Sleep ${h.toFixed(1)} h <span class="pv">(you need ~${P.need} h)</span>`, "+"+sp+" / 30", sp>=24?"pos":sp<14?"neg":""]);
   const q=Math.round((f.sleepQ-1)/4*20); s+=q; why.push(["Sleep quality "+f.sleepQ+"/5","+"+q+" / 20", q>=15?"pos":q<=5?"neg":""]);
-  const en=Math.round((f.energy-1)/4*25); s+=en; why.push(["Energy "+f.energy+"/5","+"+en+" / 25", en>=19?"pos":en<=6?"neg":""]);
-  const so=Math.round((5-f.sore)/4*25); s+=so; why.push(["Soreness "+f.sore+"/5","+"+so+" / 25", so>=19?"pos":so<=6?"neg":""]);
+  const en=Math.round(relScore(f.energy, P.base&&P.base.energy, false)*25); s+=en; why.push([`Energy ${f.energy}/5${P.base?` <span class="pv">(your usual ${P.base.energy.m.toFixed(1)})</span>`:""}`,"+"+en+" / 25", en>=19?"pos":en<=6?"neg":""]);
+  const so=Math.round(relScore(f.sore, P.base&&P.base.sore, true)*25); s+=so; why.push([`Soreness ${f.sore}/5${P.base?` <span class="pv">(your usual ${P.base.sore.m.toFixed(1)})</span>`:""}`,"+"+so+" / 25", so>=19?"pos":so<=6?"neg":""]);
   const streak=trainStreak(f.date);
   let forceRest=false;
   if(streak>=6){ forceRest=true; why.push([streak+" days straight training","Rest due","neg"]); }
   else if(streak>=4){ s-=10; why.push([streak+" days straight training","−10","neg"]); }
   const prev=sleepAvg(f.date,3); const all=[h,...prev];
   if(prev.length){ const a=all.reduce((x,y)=>x+y,0)/all.length;
-    if(a<6){ s-=10; why.push(["Sleep debt ("+a.toFixed(1)+" h avg, "+all.length+" nights)","−10","neg"]); } }
+    if(a<P.need-1.5){ s-=10; why.push(["Sleep debt ("+a.toFixed(1)+" h avg over "+all.length+" nights)","−10","neg"]); } }
   if(f.work!=null && f.work>=4){ s-=5; why.push(["Hard work day yesterday","−5","neg"]); }
   if(cycleOn() && f.cyc!=null && f.cyc>=3){ const pen=f.cyc>=4?10:5; s-=pen; why.push(["Cycle symptoms "+f.cyc+"/5","−"+pen,"neg"]); }
   s=Math.max(0,Math.min(100,Math.round(s)));
@@ -737,7 +782,7 @@ function assess(f){
   if(forceRest || s<G.rest || (f.sore===5 && f.energy<=2)) call="rest";
   else if(s>=G.heavy && f.sore<=3) call="comp";
   else call="hyper";
-  return {score:s, call, why, streak, split:nextSplit(f.date)};
+  return {score:s, call, why, streak, split:nextSplit(f.date), P};
 }
 
 /* ================= TODAY rendering ================= */
@@ -783,7 +828,8 @@ function renderCall(){
     <div class="meter"><i style="width:${a.score}%;background:${col}"></i>
       <span class="m1" style="left:${G.rest}%"></span><span class="m2" style="left:${G.heavy}%"></span></div>
     <div class="scoreline"><span>Readiness <b style="color:var(--text)">${a.score}</b>/100</span><span>rest &lt;${G.rest} · heavy ${G.heavy}+</span></div>
-    <details><summary>Why this call</summary><ul class="why">${a.why.map(w=>`<li><span>${w[0]}</span><b class="${w[2]}">${w[1]}</b></li>`).join("")}</ul></details>`;
+    <details><summary>Why this call</summary><ul class="why">${a.why.map(w=>`<li><span>${w[0]}</span><b class="${w[2]}">${w[1]}</b></li>`).join("")}</ul>
+      <div class="hint">${a.P.learnOn ? (a.P.learned!=null ? `Your sleep need is learning from ${a.P.goodN} good-energy days (${Math.round(a.P.w*100)}% your data).` : `After 5 check-ins where you feel good, your sleep need starts adjusting to you.`) + (a.P.base ? " Energy and soreness are compared to your usual." : ` After 10 check-ins, energy and soreness get compared to your usual.`) : "Learning is off. Using your set sleep need."} Change it in ⚙ Settings.</div></details>`;
 }
 
 function renderForm(){
@@ -1846,8 +1892,26 @@ function renderSplitEditor(prefix){
 function cleanSplit(list){
   const out=[]; list.forEach(d=>{ const t=DAYTYPES[d.type]?d.type:"Full Body"; let n=(d.name||"").trim().slice(0,30)||t; if(n.toLowerCase()==="rest") n=t; out.push({name:uniqueName(n,out,-1), type:t}); }); return out;
 }
+function bumpNeed(prefix, d){
+  if(prefix==="su"){ draft.sleepNeed=Math.max(4,Math.min(11,(draft.sleepNeed||DEFAULT_NEED)+d)); document.getElementById("suNeed").textContent=draft.sleepNeed.toFixed(1); return; }
+  profile.sleepNeed=Math.max(4,Math.min(11,(Number(profile.sleepNeed)||DEFAULT_NEED)+d)); store(KEYS.profile,profile); renderSettings();
+}
+function renderSleepSettings(){
+  document.getElementById("stNeed").textContent=(Number(profile.sleepNeed)||DEFAULT_NEED).toFixed(1);
+  segButtons(document.getElementById("stLearn"), [["on","On"],["off","Off"]], profile.learn===false?"off":"on", v=>{ profile.learn=(v==="on"); store(KEYS.profile,profile); renderSettings(); toast(v==="on"?"Learning on":"Learning off"); });
+  const P=personal(shift(localDate(new Date()),1));
+  document.getElementById("stNeedLbl").innerHTML = (profile.learn!==false && P.w>0) ? `Your starting guess <span style="color:var(--accent);text-transform:none;letter-spacing:0">· now using ${P.need} h</span>` : "Sleep you need";
+  let t;
+  if(profile.learn===false) t=`Readiness uses the ${P.manual} h you set. Turn learning on to let your check-ins fine-tune it.`;
+  else {
+    t = P.learned!=null ? `Your data: on days you felt good you'd slept about <b>${P.learned} h</b> (${P.goodN} days). Readiness is using <b>${P.need} h</b>, ${Math.round(P.w*100)}% from your data.` : `Not enough data yet. ${P.goodN}/5 good-energy days logged. Until then it uses the ${P.manual} h you set.`;
+    t += P.base ? ` Your usual energy is ${P.base.energy.m.toFixed(1)} and soreness ${P.base.sore.m.toFixed(1)} (last ${P.base.n} check-ins), and each day is scored against those.` : ` After 10 check-ins, energy and soreness get scored against your usual.`;
+  }
+  document.getElementById("stLearnInfo").innerHTML=t+` Each person needs their own phone (or browser), since data stays on the device.`;
+}
 function renderSetup(){
-  if(!draft) draft={units:"lb", goal:"maintain", split:PRESETS[0].days.map(t=>({name:t,type:t}))};
+  if(!draft) draft={units:"lb", goal:"maintain", split:PRESETS[0].days.map(t=>({name:t,type:t})), sleepNeed:DEFAULT_NEED};
+  document.getElementById("suNeed").textContent=(draft.sleepNeed||DEFAULT_NEED).toFixed(1);
   segButtons(document.getElementById("suUnits"), [["lb","Pounds (lb)"],["kg","Kilograms (kg)"]], draft.units, v=>{ draft.units=v; renderSetup(); });
   segButtons(document.getElementById("suGoal"), Object.entries(GOALS).map(([k,g])=>[k,g.label]), draft.goal, v=>{ draft.goal=v; renderSetup(); });
   renderSplitEditor("su");
@@ -1859,7 +1923,7 @@ function finishSetup(){
   const split=cleanSplit(draft.split);
   if(!split.length){ toast("Add at least one training day"); return; }
   const bw=Number(document.getElementById("suBw").value);
-  profile={units:draft.units, goal:draft.goal, split, bw: bw>0?bw:"", sex:draft.sex||"na", cycle:cleanCycle(draft.cycle), equip:cleanEquip(draft.equip), swaps:{}, acceptedAt:new Date().toISOString(), v:1};
+  profile={units:draft.units, goal:draft.goal, split, bw: bw>0?bw:"", sex:draft.sex||"na", cycle:cleanCycle(draft.cycle), equip:cleanEquip(draft.equip), swaps:{}, sleepNeed:draft.sleepNeed||DEFAULT_NEED, learn:true, acceptedAt:new Date().toISOString(), v:1};
   if(profile.sex==="male") profile.cycle.on=false;
   if(!store(KEYS.profile, profile)){ profile=null; return; }
   draft=null; applyUnits(); syncFuelInputs(); showView("today"); toast("You're set. Do your first check-in");
@@ -1874,6 +1938,7 @@ function renderSettings(){
   renderAboutYou("st", profile, (quiet)=>{ profile.cycle=cleanCycle(profile.cycle); if(profile.sex==="male") profile.cycle.on=false; store(KEYS.profile,profile); renderSettings(); if(!quiet) toast("Saved"); });
   renderEquip("st", profile, ()=>{ profile.equip=cleanEquip(profile.equip); store(KEYS.profile,profile); renderSettings(); });
   renderSavedSwaps();
+  renderSleepSettings();
   const lb=load(KEYS.backup,null);
   const n=Object.keys(logs).length, m=Object.keys(lifts).length;
   document.getElementById("backupInfo").textContent = `${n} check-in${n===1?"":"s"} and ${m} lifting day${m===1?"":"s"} on this phone. ` + (lb ? `Last backup: ${nice(lb.slice(0,10))}.` : "No backup saved yet.");
@@ -1967,7 +2032,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const okDate=k=>/^\d{4}-\d{2}-\d{2}$/.test(k);
     const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object") L[k]=d.logs[k]; });
     const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1}; if(typeof e.forPlan==="string") o.forPlan=e.forPlan.slice(0,60); if(typeof e.t==="number") o.t=e.t; return o; }); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
-    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps)} : profile;
+    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false} : profile;
     const FB={}; if(d.feedback && typeof d.feedback==="object") Object.keys(d.feedback).filter(okDate).forEach(k=>{ const f=d.feedback[k]; if(f && typeof f==="object"){ const o={}; if(FEEL.some(x=>x[0]===f.feel)) o.feel=f.feel; if(VOL.some(x=>x[0]===f.vol)) o.vol=f.vol; if(typeof f.split==="string") o.split=f.split.slice(0,30); if(o.feel||o.vol) FB[k]=o; } });
     const SS={}; if(d.sessions && typeof d.sessions==="object") Object.keys(d.sessions).filter(okDate).forEach(k=>{ const v=d.sessions[k]; if(v && typeof v.start==="number"){ SS[k]={start:v.start}; if(typeof v.end==="number" && v.end>v.start) SS[k].end=v.end; else SS[k].end=v.start+60*60e3; } });
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X) || !store(KEYS.fb,FB) || !store(KEYS.sess,SS)) return;
