@@ -476,7 +476,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.4.1";
+const APP_VERSION = "1.4.2";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup"};
@@ -609,17 +609,25 @@ function cycleNote(){
 }
 
 /* ================= readiness logic ================= */
+// What was trained on a day: the "what did you train" tap if there is one,
+// otherwise the split saved with any sets logged that day.
+function trainedOn(d){
+  const did=logs[d] && logs[d].did;
+  if(did) return did;
+  const v=lifts[d];
+  if(v && liftEntries(d).length) return (!Array.isArray(v) && v.split) || "Lifted";
+  return null;
+}
 function trainStreak(date){
-  let n=0, d=shift(date,-1);
-  while(logs[d] && logs[d].did && logs[d].did!=="Rest"){ n++; d=shift(d,-1); }
+  let n=0, d=shift(date,-1), t;
+  while((t=trainedOn(d)) && t!=="Rest"){ n++; d=shift(d,-1); }
   return n;
 }
 function nextSplit(date){
   const S=SPLIT();
-  const keys = Object.keys(logs).filter(k=>k<date && logs[k].did && logs[k].did!=="Rest").sort().reverse();
-  if(!keys.length) return S[0];
-  const i = S.indexOf(logs[keys[0]].did);
-  return i<0 ? S[0] : S[(i+1)%S.length];
+  const days=[...new Set([...Object.keys(logs), ...Object.keys(lifts)])].filter(k=>k<date).sort().reverse();
+  for(const k of days){ const t=trainedOn(k); const i=S.indexOf(t); if(i>=0) return S[(i+1)%S.length]; }
+  return S[0];
 }
 function sleepAvg(date, days){
   const v=[]; for(let i=1;i<days;i++){ const e=logs[shift(date,-i)]; if(e && typeof e.sleepH==="number") v.push(e.sleepH); }
