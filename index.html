@@ -327,6 +327,12 @@
   .mtag{border:1px solid var(--line);background:none;color:var(--faint);font:600 11px Inter;border-radius:999px;padding:2px 8px;margin-left:4px;cursor:pointer;vertical-align:2px}
   .mtag.unk{border-color:var(--accent);color:var(--accent)}
   .musq{border-color:#6b5320}
+  .lmode{margin-bottom:10px}.lmode button{height:44px}
+  #cardioPane .stepper .val{display:flex;align-items:baseline;justify-content:center;gap:4px}
+  #cardioPane .sess li > span:last-child{white-space:nowrap;display:flex;align-items:center;gap:6px}
+  #cardioPane .sess li{gap:8px} #cardioPane .sess li > span:first-child{flex:1;min-width:0;white-space:normal;text-align:left;overflow:visible;text-overflow:clip}
+  .cmin{width:90px;height:56px;padding:0!important;box-shadow:none!important;background:none!important;border:0!important;color:var(--text);text-align:center;font:700 44px "Barlow Condensed",Inter;-moz-appearance:textfield}
+  .cmin::-webkit-outer-spin-button,.cmin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .gpop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;justify-content:center;z-index:48;padding:16px}
   .gpop.hide{display:none}
   .gcard{background:var(--panel);border:1px solid #33373d;border-radius:22px;padding:20px 20px 16px;max-width:420px;width:100%;max-height:88vh;overflow:auto;animation:gin .3s ease-out}
@@ -476,11 +482,16 @@
 
 <!-- LIFTS -->
 <section id="viewLifts" class="hide">
-  <div class="card">
-    <div class="field">
+  <div class="seg2 lmode" id="lMode"><button type="button" data-m="lift" class="on" onclick="setLMode('lift')">🏋️ Lifting</button><button type="button" data-m="cardio" onclick="setLMode('cardio')">🏃 Cardio</button></div>
+  <div class="card" style="padding-top:12px;padding-bottom:12px">
+    <div class="field" style="margin:0">
       <label class="l" for="liftDate">Date</label>
       <input type="date" id="liftDate">
     </div>
+  </div>
+  <div id="cardioPane" class="hide"></div>
+  <div id="liftPane">
+  <div class="card">
     <div class="field">
       <label class="l" for="exName">Exercise</label>
       <div class="chips" id="exChips" style="margin-bottom:8px"></div>
@@ -515,6 +526,7 @@
     <select id="progSel"></select>
     <div id="progBody"></div>
   </div>
+  </div>
 </section>
 
 <!-- TIMER -->
@@ -542,6 +554,7 @@
   <div id="weekWins"></div>
   <div class="card" id="muscleCard"></div>
   <div class="card" id="bwCard"></div>
+  <div id="cardioHist"></div>
   <div class="card" id="badgeCard"></div>
   <div class="stats" id="stats"></div>
   <div class="card hide" id="cycleInsight"></div>
@@ -728,10 +741,10 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.20.0";
+const APP_VERSION = "1.21.0";
 
 /* ================= storage (on this device only) ================= */
-const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
+const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
 let storageOK = true;
 function load(k, fallback){ try{ const v=localStorage.getItem(k); return v ? JSON.parse(v) : fallback; }catch(_){ storageOK=false; return fallback; } }
 function store(k, v){
@@ -1133,7 +1146,7 @@ function renderHist(){
   }).join("");
   document.getElementById("barsX").innerHTML=days.map(d=>`<span>${Number(d.slice(8))}</span>`).join("");
   renderCycleInsight(keys);
-  renderWeekWins(); renderMuscleCard(); renderBwCard(); renderBadges(); renderHistProgress();
+  renderWeekWins(); renderMuscleCard(); renderBwCard(); document.getElementById("cardioHist").innerHTML=cardioWeekHtml(); renderBadges(); renderHistProgress();
   const ul=document.getElementById("hist");
   if(!keys.length){ ul.innerHTML=`<div class="empty-hist">No entries yet. Your first check-in will show up here.</div>`; return; }
   const lbl={rest:"Rest",hyper:"Hypertrophy",comp:"Heavy"};
@@ -1303,8 +1316,9 @@ function renderLastTime(){
 }
 
 function renderLifts(){
-  renderMusAsk();
   document.getElementById("liftDate").value=liftDate;
+  renderCardio(); if(lMode==="cardio") return;
+  renderMusAsk();
   const split=splitFor(liftDate);
   const dayCall = logs[liftDate]?.call==="comp" ? "comp" : "hyper";
   const sug=[...planList(split, dayCall, liftDate).names, ...suggestFor(split)].filter((n,i,a)=>a.findIndex(x=>normEx(x)===normEx(n))===i).slice(0,6);
@@ -1970,6 +1984,7 @@ function renderWeekWins(){
   const r1=lv(7,0,"score"), r0=lv(14,7,"score"); if(r1!=null && r0!=null && r1>=r0+3) items.push(`<b>Readiness up ${Math.round(r1-r0)} points</b> on average vs last week`);
   const v1=thisW.reduce((a,d)=>a+volOf(liftEntries(d)),0), v0=lastW.reduce((a,d)=>a+volOf(liftEntries(d)),0);
   if(v0>0 && v1>v0*1.03) items.push(`<b>+${Math.round((v1/v0-1)*100)}% training volume</b> vs last week`);
+  { const c=cardioWeek(today), c0=cardioWeek(shift(today,-7)); if(c.min && c.min>c0.min) items.push(`<b>${c.min} min of cardio</b> this week${c0.min?` (up from ${c0.min})`:""}`); else if(c.eq>=150) items.push(`<b>Hit the 150-minute cardio guideline</b> this week`); }
   { const R=bwReport(today); if(R && isCut() && R.rate!=null && R.rate<=-0.4 && !(R.str && R.str.pct<=-3)) items.push(`<b>Down ${Math.abs(R.avg*R.rate/100).toFixed(1)} ${U()} this week</b>${R.str?" with your strength "+(R.str.pct>=3?"going up":"holding"):""}`); }
   el.innerHTML=`<div class="card wins"><label class="l" style="color:var(--ok)">This week 💪</label><ul>${(items.length?items:["Showing up is the win. Keep stacking check-ins."]).map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
 }
@@ -2366,6 +2381,108 @@ function applyRoutine(){
 }
 function routineOf(split){ const d=splitDays().find(x=>x.name===split); return d && Array.isArray(d.ex) && d.ex.length ? d.ex : null; }
 
+/* ================= cardio ================= */
+// MET values from the Compendium of Physical Activities (moderate effort). Easy ≈ ×0.8, Hard ≈ ×1.25.
+const CARDIO=[
+  {k:"treadmill", n:"Treadmill run", g:"in", met:9.0, dist:true, icon:"🏃"},
+  {k:"incline",   n:"Incline walk", g:"in", met:5.5, dist:true, icon:"🚶"},
+  {k:"bike_in",   n:"Stationary bike", g:"in", met:7.0, dist:true, icon:"🚴"},
+  {k:"elliptical",n:"Elliptical", g:"in", met:5.0, dist:true, icon:"〰️"},
+  {k:"rower",     n:"Rowing machine", g:"in", met:7.0, dist:true, icon:"🚣"},
+  {k:"stairs",    n:"Stair climber", g:"in", met:9.0, dist:false, icon:"🪜"},
+  {k:"rope",      n:"Jump rope", g:"in", met:11.0, dist:false, icon:"🪢"},
+  {k:"hiit",      n:"HIIT / circuit", g:"in", met:8.0, dist:false, icon:"⚡"},
+  {k:"boxing",    n:"Boxing / heavy bag", g:"in", met:7.8, dist:false, icon:"🥊"},
+  {k:"swim",      n:"Swimming", g:"in", met:7.0, dist:true, icon:"🏊"},
+  {k:"assault",   n:"Air bike", g:"in", met:9.0, dist:false, icon:"🌀"},
+  {k:"walk",      n:"Walk", g:"out", met:3.5, dist:true, icon:"🚶"},
+  {k:"run",       n:"Run", g:"out", met:9.8, dist:true, icon:"🏃"},
+  {k:"hike",      n:"Hike", g:"out", met:6.0, dist:true, icon:"🥾"},
+  {k:"bike",      n:"Bike ride", g:"out", met:7.5, dist:true, icon:"🚲"},
+  {k:"sprints",   n:"Sprints / hills", g:"out", met:10.0, dist:false, icon:"💨"},
+  {k:"sled",      n:"Sled push / drag", g:"out", met:8.0, dist:false, icon:"🛷"},
+  {k:"sports",    n:"Sports (hoops, soccer…)", g:"out", met:7.0, dist:false, icon:"🏀"},
+  {k:"ruck",      n:"Ruck (weighted walk)", g:"out", met:6.5, dist:true, icon:"🎒"},
+  {k:"other",     n:"Other", g:"out", met:6.0, dist:false, icon:"➕"}
+];
+const CINT=[["easy","Easy",0.8],["mod","Moderate",1],["hard","Hard",1.25]];
+let cardio = load(KEYS.cardio, {});
+let lMode="lift", cDraft={k:"treadmill", min:30, int:"mod", dist:"", other:""};
+const cAct = k => CARDIO.find(c=>c.k===k) || CARDIO[CARDIO.length-1];
+const cardioOn = d => (cardio[d]||[]);
+function cKcal(e){ const a=cAct(e.k), f=(CINT.find(x=>x[0]===e.int)||CINT[1])[2]; const kg=bodyKg() || (U()==="kg"?80:180/2.2046); return Math.round(a.met*f*kg*(e.min/60)); }
+const cName = e => e.k==="other" && e.other ? e.other : cAct(e.k).n;
+const dUnit = () => U()==="kg" ? "km" : "mi";
+function setLMode(m){ lMode=m; renderLifts(); }
+function renderCardio(){
+  const pane=document.getElementById("cardioPane"); if(!pane) return;
+  document.getElementById("liftPane").classList.toggle("hide", lMode!=="lift");
+  pane.classList.toggle("hide", lMode!=="cardio");
+  document.querySelectorAll("#lMode button").forEach(b=>b.classList.toggle("on", b.dataset.m===lMode));
+  if(lMode!=="cardio") return;
+  const a=cAct(cDraft.k), grp=g=>CARDIO.filter(c=>c.g===g).map(c=>`<button type="button" class="${c.k===cDraft.k?"on":""}" onclick="cPick('${c.k}')">${c.icon} ${esc(c.n)}</button>`).join("");
+  const est=cKcal(cDraft), pace = a.dist && Number(cDraft.dist)>0 ? cDraft.min/Number(cDraft.dist) : null;
+  const list=cardioOn(liftDate);
+  pane.innerHTML=`<div class="card">
+      <div class="schq" style="margin-top:0">Indoor</div><div class="chips">${grp("in")}</div>
+      <div class="schq">Outdoor</div><div class="chips">${grp("out")}</div>
+      ${cDraft.k==="other"?`<input type="text" id="cOther" maxlength="40" placeholder="What did you do?" value="${esc(cDraft.other)}" style="margin-top:10px">`:""}
+      <div class="schq">Minutes</div>
+      <div class="stepper"><button type="button" onclick="cBump(-5)">−</button><div class="val"><input id="cMin" type="number" inputmode="numeric" min="1" max="600" value="${cDraft.min}" class="cmin"><small>min</small></div><button type="button" onclick="cBump(5)">+</button></div>
+      <div class="schq">How hard?</div>
+      <div class="seg2">${CINT.map(([k,l])=>`<button type="button" class="${cDraft.int===k?"on":""}" onclick="cInt('${k}')">${l}</button>`).join("")}</div>
+      <div class="hint" style="margin-top:6px">Easy: you could hold a conversation. Moderate: you can talk in short sentences. Hard: only a few words at a time.</div>
+      ${a.dist?`<div class="schq">Distance (optional, ${dUnit()})</div><input type="number" id="cDist" inputmode="decimal" step="0.1" min="0" placeholder="e.g. 3.1" value="${esc(cDraft.dist)}">`:""}
+      <div class="bwnote">≈ <b>${est} kcal</b>${pace?` · ${Math.floor(pace)}:${String(Math.round((pace%1)*60)).padStart(2,"0")} min/${dUnit()}`:""} <span class="muted" style="font-size:12px">(estimate from your body weight)</span></div>
+      <button class="btn" style="margin-top:12px" onclick="addCardio()">Log cardio</button>
+    </div>
+    <div class="card"><label class="l">${liftDate===localDate(new Date())?"Cardio today":"Cardio on "+nice(liftDate)}</label>
+      ${list.length?`<ul class="sess">${list.map(e=>`<li><span>${cAct(e.k).icon} <b>${esc(cName(e))}</b> · ${e.min} min · ${CINT.find(x=>x[0]===e.int)[1].toLowerCase()}${e.dist?` · ${e.dist} ${dUnit()}`:""}</span><span>≈${cKcal(e)} kcal<button type="button" class="trash" aria-label="Remove" onclick="delCardio('${jsq(e.id)}')">×</button></span></li>`).join("")}</ul>`
+        :`<div class="hint" style="margin-top:0">Nothing logged yet. Cardio doesn't change your lifting split.</div>`}
+    </div>
+    ${cardioWeekHtml()}`;
+  const om=document.getElementById("cMin"); om.oninput=()=>{ const v=parseInt(om.value,10); if(v>0){ cDraft.min=Math.min(600,v); updCardioEst(); } };
+  const od=document.getElementById("cDist"); if(od) od.oninput=()=>{ cDraft.dist=od.value; updCardioEst(); };
+  const oo=document.getElementById("cOther"); if(oo) oo.oninput=()=>{ cDraft.other=oo.value; };
+}
+function updCardioEst(){ const el=document.querySelector("#cardioPane .bwnote"); if(!el) return; const a=cAct(cDraft.k), pace=a.dist&&Number(cDraft.dist)>0?cDraft.min/Number(cDraft.dist):null; el.innerHTML=`≈ <b>${cKcal(cDraft)} kcal</b>${pace?` · ${Math.floor(pace)}:${String(Math.round((pace%1)*60)).padStart(2,"0")} min/${dUnit()}`:""} <span class="muted" style="font-size:12px">(estimate from your body weight)</span>`; }
+function cPick(k){ cDraft.k=k; renderCardio(); }
+function cInt(k){ cDraft.int=k; renderCardio(); }
+function cBump(d){ cDraft.min=Math.max(5,Math.min(600,(cDraft.min||30)+d)); renderCardio(); }
+function addCardio(){
+  const min=parseInt(document.getElementById("cMin").value,10);
+  if(!(min>0)){ toast("Enter minutes"); return; }
+  if(cDraft.k==="other" && !String(cDraft.other).trim()){ toast("Name the activity"); return; }
+  const a=cAct(cDraft.k), dist=a.dist ? Math.round(Number(cDraft.dist)*100)/100 : 0;
+  const e={id:Date.now().toString(36)+Math.random().toString(36).slice(2,5), k:cDraft.k, min:Math.min(600,min), int:cDraft.int, t:Date.now()};
+  if(dist>0) e.dist=dist; if(cDraft.k==="other") e.other=String(cDraft.other).trim().slice(0,40);
+  const next={...cardio, [liftDate]:[...cardioOn(liftDate), e]};
+  if(store(KEYS.cardio,next)){ cardio=next; cDraft.dist=""; toast(`Logged ${cName(e)}: ${e.min} min · ≈${cKcal(e)} kcal 🔥`); renderCardio(); checkBadges(); }
+}
+function delCardio(id){
+  const list=cardioOn(liftDate), e=list.find(x=>x.id===id); if(!e) return;
+  const next={...cardio, [liftDate]:list.filter(x=>x.id!==id)}; if(!next[liftDate].length) delete next[liftDate];
+  if(store(KEYS.cardio,next)){ cardio=next; renderCardio(); const d=liftDate; toastAction(`Removed ${cName(e)}`, "Undo", ()=>{ const n={...cardio, [d]:[...cardioOn(d), e]}; if(store(KEYS.cardio,n)){ cardio=n; renderCardio(); } }); }
+}
+// Weekly minutes; hard minutes count double toward the common 150-min moderate / 75-min vigorous guideline.
+function cardioWeek(end){
+  end=end||localDate(new Date()); let min=0, eq=0, kcal=0, n=0;
+  Object.keys(cardio).forEach(d=>{ if(d>shift(end,-7) && d<=end) cardio[d].forEach(e=>{ min+=e.min; eq+=e.int==="hard"?e.min*2:e.min; kcal+=cKcal(e); n++; }); });
+  return {min, eq, kcal, n};
+}
+function cardioWeekHtml(){
+  const w=cardioWeek(), p=cardioWeek(shift(localDate(new Date()),-7));
+  if(!w.n && !p.n) return "";
+  const pct=Math.min(100, Math.round(w.eq/150*100));
+  return `<div class="card"><label class="l">Cardio · last 7 days</label>
+    <div class="stats" style="margin:4px 0 0">
+      <div class="stat"><div class="k">Minutes</div><div class="v">${w.min}</div></div>
+      <div class="stat"><div class="k">Sessions</div><div class="v">${w.n}</div></div>
+      <div class="stat"><div class="k">≈ kcal</div><div class="v">${w.kcal.toLocaleString()}</div></div></div>
+    <div class="pbar" style="height:8px;margin:12px 0 6px"><i style="width:${pct}%;background:${pct>=100?"var(--ok)":"var(--accent)"}"></i></div>
+    <div class="hint" style="margin-top:0">${pct>=100?"✓ You hit the weekly guideline of 150 moderate minutes (hard minutes count double). Nice.":`${w.eq} of 150 moderate-equivalent minutes toward the weekly guideline (hard minutes count double).`}${p.min && w.min>p.min?` Up ${w.min-p.min} min from the week before 💪`:""}</div></div>`;
+}
+
 /* ================= how-it-works guide ================= */
 const GUIDE_V=1;
 function guideSteps(returning){ const u=U(); return [
@@ -2430,7 +2547,8 @@ function badgeStats(){
   return { workouts:liftDays.length, ciStreak:longestRun(ci), checkins:ci.length, weeks:wk, prs, gain:Math.round(gain),
     bench:topOf(RX_BENCH), squat:topOf(RX_SQUAT), dead:topOf(RX_DEAD), vol, sleepRun:longestRun(sleepOK),
     rested:Object.keys(logs).filter(d=>logs[d].call==="rest" && logs[d].did==="Rest").length,
-    dialed:Object.values(feedback).filter(f=>f && f.feel==="right").length };
+    dialed:Object.values(feedback).filter(f=>f && f.feel==="right").length,
+    cmin:Object.values(cardio).reduce((a,l)=>a+l.reduce((x,e)=>x+e.min,0),0) };
 }
 // Lifetime weight lifted, Fitbit-style. Weights: African elephant ~6 t; T. rex ~9 t; US federal max gross for a semi 80,000 lb;
 // blue whale avg ~160 t (Guinness); Statue of Liberty 450,000 lb (NPS); 747-8 max takeoff 987,000 lb (Boeing);
@@ -2463,7 +2581,8 @@ function badgeDefs(){
     ...LIFETIME.map((o,i)=>{ const g=kg?o.kg:o.lb; return {id:`life${i}`, fam:"life", tier:i, icon:o.icon, key:"vol", goal:g, name:o.name, desc:`${g.toLocaleString()} ${u} lifted all-time: as much as ${o.what}.`}; }),
     ...tiers("sleep","😴","sleepRun",[5,14], g=>`${g}-night sleep streak`, g=>`${g} nights in a row at or above your sleep need.`),
     ...tiers("rest","🧘","rested",[1,10], g=>g===1?"Listened to your body":"Recovery pro", g=>g===1?"Took the rest day when your body called for it.":"Took 10 called rest days. Smart training."),
-    ...tiers("dial","🎯","dialed",[5], ()=>"Dialed in", ()=>"5 sessions rated Just right.")
+    ...tiers("dial","🎯","dialed",[5], ()=>"Dialed in", ()=>"5 sessions rated Just right."),
+    ...tiers("cardio","🫀","cmin",[60,500,1000,5000,10000], g=>g===60?"First hour of cardio":`${g.toLocaleString()} cardio minutes`, g=>`${g.toLocaleString()} minutes of cardio logged all-time.`)
   ];
 }
 let badgeState = load(KEYS.badges, {earned:{}, init:false});
@@ -3069,7 +3188,7 @@ function cleanCycle(c){
 
 /* backup */
 function exportData(){
-  const data={app:"todays-call", version:1, exportedAt:new Date().toISOString(), profile, prefs, logs, lifts, feedback, sessions:sessT, badges:badgeState};
+  const data={app:"todays-call", version:1, exportedAt:new Date().toISOString(), profile, prefs, logs, lifts, feedback, sessions:sessT, badges:badgeState, cardio};
   const text=JSON.stringify(data);
   const name=`todays-call-backup-${localDate(new Date())}.json`;
   const file = (()=>{ try{ return new File([text], name, {type:"application/json"}); }catch(_){ return null; } })();
@@ -3097,6 +3216,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const SS={}; if(d.sessions && typeof d.sessions==="object") Object.keys(d.sessions).filter(okDate).forEach(k=>{ const v=d.sessions[k]; if(v && typeof v.start==="number"){ SS[k]={start:v.start}; if(typeof v.end==="number" && v.end>v.start) SS[k].end=v.end; else SS[k].end=v.start+60*60e3; } });
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X) || !store(KEYS.fb,FB) || !store(KEYS.sess,SS)) return;
     logs=L; lifts=X; feedback=FB; sessT=SS; syncTimerBar();
+    { const C={}; if(d.cardio && typeof d.cardio==="object") Object.keys(d.cardio).filter(okDate).forEach(k=>{ const a=(Array.isArray(d.cardio[k])?d.cardio[k]:[]).filter(e=>e && typeof e.min==="number" && e.min>0).slice(0,30).map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), k:CARDIO.some(c=>c.k===e.k)?e.k:"other", min:Math.min(600,Math.round(e.min)), int:CINT.some(x=>x[0]===e.int)?e.int:"mod", t:Number(e.t)||0}; if(Number(e.dist)>0) o.dist=Math.round(Number(e.dist)*100)/100; if(typeof e.other==="string") o.other=e.other.slice(0,40); return o; }); if(a.length) C[k]=a; }); if(store(KEYS.cardio,C)) cardio=C; }
     { const B={earned:{}, init:false}; if(d.badges && d.badges.earned && typeof d.badges.earned==="object") Object.keys(d.badges.earned).slice(0,200).forEach(k=>{ const v=d.badges.earned[k]; if(/^[a-z]+\d+$/.test(k) && okDate(String(v))) B.earned[k]=v; }); if(d.badges && Array.isArray(d.badges.seeded)) B.seeded=d.badges.seeded.filter(k=>typeof k==="string" && B.earned[k]); badgeState=B; store(KEYS.badges,B); }
     if(P){ profile=P; store(KEYS.profile,profile); }
     checkBadges();   // badges already earned in restored data are added quietly
@@ -3115,7 +3235,7 @@ function askReset(){ document.getElementById("confirmReset").classList.add("show
 function doReset(){
   badgeState={earned:{}, init:false}; badgeQueue=[];
   [...Object.values(KEYS),"tc.swaps"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(_){} }); daySwaps={};
-  profile=null; logs={}; lifts={}; feedback={}; sessT={}; syncTimerBar(); prefs={liftTime:"17:30", dur:75}; draft=null; form=blankForm(localDate(new Date()));
+  profile=null; logs={}; lifts={}; feedback={}; sessT={}; cardio={}; syncTimerBar(); prefs={liftTime:"17:30", dur:75}; draft=null; form=blankForm(localDate(new Date()));
   document.getElementById("confirmReset").classList.remove("show");
   showView("setup"); toast("All data erased");
 }
