@@ -327,7 +327,8 @@
   .mtag{border:1px solid var(--line);background:none;color:var(--faint);font:600 11px Inter;border-radius:999px;padding:2px 8px;margin-left:4px;cursor:pointer;vertical-align:2px}
   .mtag.unk{border-color:var(--accent);color:var(--accent)}
   .musq{border-color:#6b5320}
-  .lmode{margin-bottom:10px}.lmode button{height:44px}
+  .lmode{margin-bottom:10px}
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lmode button{height:44px}
   #cardioPane .stepper .val{display:flex;align-items:baseline;justify-content:center;gap:4px}
   #cardioPane .sess li > span:last-child{white-space:nowrap;display:flex;align-items:center;gap:6px}
   #cardioPane .sess li{gap:8px} #cardioPane .sess li > span:first-child{flex:1;min-width:0;white-space:normal;text-align:left;overflow:visible;text-overflow:clip}
@@ -741,7 +742,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.21.0";
+const APP_VERSION = "1.22.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -2384,12 +2385,12 @@ function routineOf(split){ const d=splitDays().find(x=>x.name===split); return d
 /* ================= cardio ================= */
 // MET values from the Compendium of Physical Activities (moderate effort). Easy ≈ ×0.8, Hard ≈ ×1.25.
 const CARDIO=[
-  {k:"treadmill", n:"Treadmill run", g:"in", met:9.0, dist:true, icon:"🏃"},
-  {k:"incline",   n:"Incline walk", g:"in", met:5.5, dist:true, icon:"🚶"},
+  {k:"treadmill", n:"Treadmill", g:"in", met:9.0, dist:true, tm:true, icon:"🏃"},
+  {k:"incline",   n:"Incline walk", g:"in", met:5.5, dist:true, tm:true, walk:true, icon:"🚶"},
   {k:"bike_in",   n:"Stationary bike", g:"in", met:7.0, dist:true, icon:"🚴"},
   {k:"elliptical",n:"Elliptical", g:"in", met:5.0, dist:true, icon:"〰️"},
   {k:"rower",     n:"Rowing machine", g:"in", met:7.0, dist:true, icon:"🚣"},
-  {k:"stairs",    n:"Stair climber", g:"in", met:9.0, dist:false, icon:"🪜"},
+  {k:"stairs",    n:"Stair climber", g:"in", met:9.0, dist:false, lvl:true, icon:"🪜"},
   {k:"rope",      n:"Jump rope", g:"in", met:11.0, dist:false, icon:"🪢"},
   {k:"hiit",      n:"HIIT / circuit", g:"in", met:8.0, dist:false, icon:"⚡"},
   {k:"boxing",    n:"Boxing / heavy bag", g:"in", met:7.8, dist:false, icon:"🥊"},
@@ -2407,10 +2408,23 @@ const CARDIO=[
 ];
 const CINT=[["easy","Easy",0.8],["mod","Moderate",1],["hard","Hard",1.25]];
 let cardio = load(KEYS.cardio, {});
-let lMode="lift", cDraft={k:"treadmill", min:30, int:"mod", dist:"", other:""};
+let lMode="lift", cDraft={k:"treadmill", min:30, int:"mod", dist:"", other:"", spd:"", inc:"", lvl:""};
+const sUnit = () => U()==="kg" ? "km/h" : "mph";
+// Treadmill with speed: ACSM equations (ml/kg/min). Walking (up to ~3.7 mph): 0.1·v + 1.8·v·grade + 3.5.
+// Running: 0.2·v + 0.9·v·grade + 3.5, with v in m/min. MET = VO2 / 3.5.
+function tmMet(e){
+  const v = Number(e.spd) * (U()==="kg" ? 16.667 : 26.822), g = Math.max(0, Number(e.inc)||0)/100, mph = U()==="kg" ? Number(e.spd)/1.609 : Number(e.spd);
+  const walk = mph<=3.7 || (cAct(e.k).walk && mph<4.5);
+  const vo2 = walk ? 0.1*v + 1.8*v*g + 3.5 : 0.2*v + 0.9*v*g + 3.5;
+  return vo2/3.5;
+}
 const cAct = k => CARDIO.find(c=>c.k===k) || CARDIO[CARDIO.length-1];
 const cardioOn = d => (cardio[d]||[]);
-function cKcal(e){ const a=cAct(e.k), f=(CINT.find(x=>x[0]===e.int)||CINT[1])[2]; const kg=bodyKg() || (U()==="kg"?80:180/2.2046); return Math.round(a.met*f*kg*(e.min/60)); }
+function cKcal(e){ const a=cAct(e.k), f=(CINT.find(x=>x[0]===e.int)||CINT[1])[2]; const kg=bodyKg() || (U()==="kg"?80:180/2.2046);
+  const met = a.tm && Number(e.spd)>0 ? tmMet(e) : a.met*f; return Math.round(met*kg*(e.min/60)); }
+function cDetail(e){ const a=cAct(e.k), bits=[];
+  if(a.tm && Number(e.spd)>0) bits.push(`${e.spd} ${sUnit()}`); if(a.tm && Number(e.inc)>0) bits.push(`${e.inc}% incline`);
+  if(a.lvl && Number(e.lvl)>0) bits.push(`level ${e.lvl}`); return bits.join(" · "); }
 const cName = e => e.k==="other" && e.other ? e.other : cAct(e.k).n;
 const dUnit = () => U()==="kg" ? "km" : "mi";
 function setLMode(m){ lMode=m; renderLifts(); }
@@ -2421,7 +2435,7 @@ function renderCardio(){
   document.querySelectorAll("#lMode button").forEach(b=>b.classList.toggle("on", b.dataset.m===lMode));
   if(lMode!=="cardio") return;
   const a=cAct(cDraft.k), grp=g=>CARDIO.filter(c=>c.g===g).map(c=>`<button type="button" class="${c.k===cDraft.k?"on":""}" onclick="cPick('${c.k}')">${c.icon} ${esc(c.n)}</button>`).join("");
-  const est=cKcal(cDraft), pace = a.dist && Number(cDraft.dist)>0 ? cDraft.min/Number(cDraft.dist) : null;
+  const est=cKcal(cDraft), pace = cPace(cDraft);
   const list=cardioOn(liftDate);
   pane.innerHTML=`<div class="card">
       <div class="schq" style="margin-top:0">Indoor</div><div class="chips">${grp("in")}</div>
@@ -2432,20 +2446,29 @@ function renderCardio(){
       <div class="schq">How hard?</div>
       <div class="seg2">${CINT.map(([k,l])=>`<button type="button" class="${cDraft.int===k?"on":""}" onclick="cInt('${k}')">${l}</button>`).join("")}</div>
       <div class="hint" style="margin-top:6px">Easy: you could hold a conversation. Moderate: you can talk in short sentences. Hard: only a few words at a time.</div>
-      ${a.dist?`<div class="schq">Distance (optional, ${dUnit()})</div><input type="number" id="cDist" inputmode="decimal" step="0.1" min="0" placeholder="e.g. 3.1" value="${esc(cDraft.dist)}">`:""}
-      <div class="bwnote">≈ <b>${est} kcal</b>${pace?` · ${Math.floor(pace)}:${String(Math.round((pace%1)*60)).padStart(2,"0")} min/${dUnit()}`:""} <span class="muted" style="font-size:12px">(estimate from your body weight)</span></div>
+      ${a.tm?`<div class="duo"><div><div class="schq">Speed (${sUnit()})</div><input type="number" id="cSpd" inputmode="decimal" step="0.1" min="0" max="${U()==="kg"?25:15}" placeholder="${a.walk?(U()==="kg"?"e.g. 5":"e.g. 3.0"):(U()==="kg"?"e.g. 9.5":"e.g. 6.0")}" value="${esc(cDraft.spd)}"></div>
+        <div><div class="schq">Incline (%)</div><input type="number" id="cInc" inputmode="decimal" step="0.5" min="0" max="40" placeholder="${a.walk?"e.g. 12":"e.g. 1"}" value="${esc(cDraft.inc)}"></div></div>
+        <div class="hint" style="margin-top:6px">With speed filled in, calories use your actual speed and incline, and distance fills itself in.</div>`:""}
+      ${a.lvl?`<div class="schq">Speed level</div><input type="number" id="cLvl" inputmode="numeric" step="1" min="1" max="30" placeholder="e.g. 8 (the level on the machine)" value="${esc(cDraft.lvl)}">`:""}
+      ${a.dist?`<div class="schq">Distance (optional, ${dUnit()})</div><input type="number" id="cDist" inputmode="decimal" step="0.1" min="0" placeholder="${a.tm?"auto from speed, or type it":"e.g. 3.1"}" value="${esc(cDraft.dist)}">`:""}
+      <div class="bwnote">${estLine(cDraft)}</div>
       <button class="btn" style="margin-top:12px" onclick="addCardio()">Log cardio</button>
     </div>
     <div class="card"><label class="l">${liftDate===localDate(new Date())?"Cardio today":"Cardio on "+nice(liftDate)}</label>
-      ${list.length?`<ul class="sess">${list.map(e=>`<li><span>${cAct(e.k).icon} <b>${esc(cName(e))}</b> · ${e.min} min · ${CINT.find(x=>x[0]===e.int)[1].toLowerCase()}${e.dist?` · ${e.dist} ${dUnit()}`:""}</span><span>≈${cKcal(e)} kcal<button type="button" class="trash" aria-label="Remove" onclick="delCardio('${jsq(e.id)}')">×</button></span></li>`).join("")}</ul>`
+      ${list.length?`<ul class="sess">${list.map(e=>`<li><span>${cAct(e.k).icon} <b>${esc(cName(e))}</b> · ${e.min} min ${cDetail(e)?` · ${esc(cDetail(e))}`:""} · ${CINT.find(x=>x[0]===e.int)[1].toLowerCase()}${e.dist?` · ${e.dist} ${dUnit()}`:""}</span><span>≈${cKcal(e)} kcal<button type="button" class="trash" aria-label="Remove" onclick="delCardio('${jsq(e.id)}')">×</button></span></li>`).join("")}</ul>`
         :`<div class="hint" style="margin-top:0">Nothing logged yet. Cardio doesn't change your lifting split.</div>`}
     </div>
     ${cardioWeekHtml()}`;
   const om=document.getElementById("cMin"); om.oninput=()=>{ const v=parseInt(om.value,10); if(v>0){ cDraft.min=Math.min(600,v); updCardioEst(); } };
   const od=document.getElementById("cDist"); if(od) od.oninput=()=>{ cDraft.dist=od.value; updCardioEst(); };
   const oo=document.getElementById("cOther"); if(oo) oo.oninput=()=>{ cDraft.other=oo.value; };
+  [["cSpd","spd"],["cInc","inc"],["cLvl","lvl"]].forEach(([id,k])=>{ const el=document.getElementById(id); if(el) el.oninput=()=>{ cDraft[k]=el.value; updCardioEst(); }; });
 }
-function updCardioEst(){ const el=document.querySelector("#cardioPane .bwnote"); if(!el) return; const a=cAct(cDraft.k), pace=a.dist&&Number(cDraft.dist)>0?cDraft.min/Number(cDraft.dist):null; el.innerHTML=`≈ <b>${cKcal(cDraft)} kcal</b>${pace?` · ${Math.floor(pace)}:${String(Math.round((pace%1)*60)).padStart(2,"0")} min/${dUnit()}`:""} <span class="muted" style="font-size:12px">(estimate from your body weight)</span>`; }
+function cDistOf(e){ const a=cAct(e.k); if(!a.dist) return 0; if(Number(e.dist)>0) return Number(e.dist); if(a.tm && Number(e.spd)>0) return Math.round(Number(e.spd)*e.min/60*100)/100; return 0; }
+function cPace(e){ const d=cDistOf(e); return d>0 ? e.min/d : null; }
+function estLine(e){ const pace=cPace(e), d=cDistOf(e), a=cAct(e.k);
+  return `≈ <b>${cKcal(e)} kcal</b>${d && !(Number(e.dist)>0) ? ` · ${d} ${dUnit()}` : ""}${pace?` · ${Math.floor(pace)}:${String(Math.round((pace%1)*60)).padStart(2,"0")} min/${dUnit()}`:""} <span class="muted" style="font-size:12px">(${a.tm && Number(e.spd)>0 ? "from your speed, incline and body weight" : "estimate from your body weight"})</span>`; }
+function updCardioEst(){ const el=document.querySelector("#cardioPane .bwnote"); if(el) el.innerHTML=estLine(cDraft); }
 function cPick(k){ cDraft.k=k; renderCardio(); }
 function cInt(k){ cDraft.int=k; renderCardio(); }
 function cBump(d){ cDraft.min=Math.max(5,Math.min(600,(cDraft.min||30)+d)); renderCardio(); }
@@ -2453,9 +2476,11 @@ function addCardio(){
   const min=parseInt(document.getElementById("cMin").value,10);
   if(!(min>0)){ toast("Enter minutes"); return; }
   if(cDraft.k==="other" && !String(cDraft.other).trim()){ toast("Name the activity"); return; }
-  const a=cAct(cDraft.k), dist=a.dist ? Math.round(Number(cDraft.dist)*100)/100 : 0;
+  const a=cAct(cDraft.k), dist=a.dist ? Math.round(cDistOf({...cDraft, min})*100)/100 : 0;
   const e={id:Date.now().toString(36)+Math.random().toString(36).slice(2,5), k:cDraft.k, min:Math.min(600,min), int:cDraft.int, t:Date.now()};
   if(dist>0) e.dist=dist; if(cDraft.k==="other") e.other=String(cDraft.other).trim().slice(0,40);
+  if(a.tm){ const sp=Math.round(Number(cDraft.spd)*10)/10, ic=Math.round(Number(cDraft.inc)*10)/10; if(sp>0 && sp<=30) e.spd=sp; if(ic>0 && ic<=40) e.inc=ic; }
+  if(a.lvl){ const lv=Math.round(Number(cDraft.lvl)); if(lv>0 && lv<=30) e.lvl=lv; }
   const next={...cardio, [liftDate]:[...cardioOn(liftDate), e]};
   if(store(KEYS.cardio,next)){ cardio=next; cDraft.dist=""; toast(`Logged ${cName(e)}: ${e.min} min · ≈${cKcal(e)} kcal 🔥`); renderCardio(); checkBadges(); }
 }
@@ -3216,7 +3241,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const SS={}; if(d.sessions && typeof d.sessions==="object") Object.keys(d.sessions).filter(okDate).forEach(k=>{ const v=d.sessions[k]; if(v && typeof v.start==="number"){ SS[k]={start:v.start}; if(typeof v.end==="number" && v.end>v.start) SS[k].end=v.end; else SS[k].end=v.start+60*60e3; } });
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X) || !store(KEYS.fb,FB) || !store(KEYS.sess,SS)) return;
     logs=L; lifts=X; feedback=FB; sessT=SS; syncTimerBar();
-    { const C={}; if(d.cardio && typeof d.cardio==="object") Object.keys(d.cardio).filter(okDate).forEach(k=>{ const a=(Array.isArray(d.cardio[k])?d.cardio[k]:[]).filter(e=>e && typeof e.min==="number" && e.min>0).slice(0,30).map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), k:CARDIO.some(c=>c.k===e.k)?e.k:"other", min:Math.min(600,Math.round(e.min)), int:CINT.some(x=>x[0]===e.int)?e.int:"mod", t:Number(e.t)||0}; if(Number(e.dist)>0) o.dist=Math.round(Number(e.dist)*100)/100; if(typeof e.other==="string") o.other=e.other.slice(0,40); return o; }); if(a.length) C[k]=a; }); if(store(KEYS.cardio,C)) cardio=C; }
+    { const C={}; if(d.cardio && typeof d.cardio==="object") Object.keys(d.cardio).filter(okDate).forEach(k=>{ const a=(Array.isArray(d.cardio[k])?d.cardio[k]:[]).filter(e=>e && typeof e.min==="number" && e.min>0).slice(0,30).map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), k:CARDIO.some(c=>c.k===e.k)?e.k:"other", min:Math.min(600,Math.round(e.min)), int:CINT.some(x=>x[0]===e.int)?e.int:"mod", t:Number(e.t)||0}; if(Number(e.dist)>0) o.dist=Math.round(Number(e.dist)*100)/100; if(typeof e.other==="string") o.other=e.other.slice(0,40); ["spd","inc","lvl"].forEach(x=>{ const v=Number(e[x]); if(v>0 && v<=40) o[x]=v; }); return o; }); if(a.length) C[k]=a; }); if(store(KEYS.cardio,C)) cardio=C; }
     { const B={earned:{}, init:false}; if(d.badges && d.badges.earned && typeof d.badges.earned==="object") Object.keys(d.badges.earned).slice(0,200).forEach(k=>{ const v=d.badges.earned[k]; if(/^[a-z]+\d+$/.test(k) && okDate(String(v))) B.earned[k]=v; }); if(d.badges && Array.isArray(d.badges.seeded)) B.seeded=d.badges.seeded.filter(k=>typeof k==="string" && B.earned[k]); badgeState=B; store(KEYS.badges,B); }
     if(P){ profile=P; store(KEYS.profile,profile); }
     checkBadges();   // badges already earned in restored data are added quietly
