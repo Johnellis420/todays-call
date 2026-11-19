@@ -324,6 +324,9 @@
   .sgm{font-size:12px;color:var(--faint);margin:3px 0 6px}
   .sgb{font-size:13.5px;line-height:1.45;color:#d6d9dd}
   .sgn{font-size:13px;line-height:1.4;color:var(--hyper);margin-top:5px}
+  .mtag{border:1px solid var(--line);background:none;color:var(--faint);font:600 11px Inter;border-radius:999px;padding:2px 8px;margin-left:4px;cursor:pointer;vertical-align:2px}
+  .mtag.unk{border-color:var(--accent);color:var(--accent)}
+  .musq{border-color:#6b5320}
   .gpop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;justify-content:center;z-index:48;padding:16px}
   .gpop.hide{display:none}
   .gcard{background:var(--panel);border:1px solid #33373d;border-radius:22px;padding:20px 20px 16px;max-width:420px;width:100%;max-height:88vh;overflow:auto;animation:gin .3s ease-out}
@@ -497,6 +500,7 @@
     <div class="rclock sm" id="rClockL"></div>
     <div class="hint">Bodyweight moves: enter 0, or just the added weight. Assisted machines: enter how much assistance you used. Less assistance counts as progress.</div>
   </div>
+  <div id="musAsk"></div>
 
   <div class="card">
     <label class="l" id="dayLiftsLabel">Logged today</label>
@@ -724,7 +728,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.19.0";
+const APP_VERSION = "1.20.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -1299,6 +1303,7 @@ function renderLastTime(){
 }
 
 function renderLifts(){
+  renderMusAsk();
   document.getElementById("liftDate").value=liftDate;
   const split=splitFor(liftDate);
   const dayCall = logs[liftDate]?.call==="comp" ? "comp" : "hyper";
@@ -1319,7 +1324,8 @@ function renderLifts(){
       const priorBest=prior.length?Math.max(...prior.map(s=>s.best)):0;
       const prBest=Math.max(...sets.map(e=>e1rm(effW(e),e.r)));
       const vol=sets.reduce((a,e)=>a+effW(e)*e.r*e.s,0);
-      return `<div class="ex"><div class="n"><span>${esc(name)}</span><span class="exr"><small>${vol>0?Math.round(vol).toLocaleString()+" "+U()+" volume":""}</small><button type="button" class="trash" aria-label="Remove ${esc(name)}" onclick="delExercise('${jsq(name)}')">🗑</button></span></div><div class="sets">`+
+      const pm=primaryMus(name)[0];
+      return `<div class="ex"><div class="n"><span>${esc(name)} <button type="button" class="mtag ${pm?"":"unk"}" onclick="askMuscle('${jsq(name)}')">${pm?MUS_LABEL[pm]:"? muscle"}</button></span><span class="exr"><small>${vol>0?Math.round(vol).toLocaleString()+" "+U()+" volume":""}</small><button type="button" class="trash" aria-label="Remove ${esc(name)}" onclick="delExercise('${jsq(name)}')">🗑</button></span></div><div class="sets">`+
         sets.map(e=>{ const ew=effW(e), isPR = prior.length && ew>0 && e1rm(ew,e.r)>priorBest && e1rm(ew,e.r)===prBest;
           return `<span class="set ${isPR?"pr":""} ${editId===e.id?"editing":""}" onclick="editSet('${jsq(e.id)}')">${fmtSet(e)} × ${e.r}${e.s>1?` <span class="muted">×${e.s}</span>`:""}${isPR?` <span class="pr-t">PR</span>`:""}<button aria-label="Remove set" onclick="event.stopPropagation();delSet('${jsq(e.id)}')">×</button></span>`; }).join("")+
         `</div>${(()=>{ const e=sets.find(x=>x.id===editId); if(!e) return "";
@@ -1614,7 +1620,8 @@ function splitOfDate(d){ const did=logs[d]?.did; if(did && did!=="Rest") return 
 function isCompound(name){
   const n=String(name).toLowerCase();
   if(/\b(fly|flye|flyes|flys|curl|raise|extension|pushdown|push-down|kickback|crunch|calf|shrug|pec deck|pullover|pull-apart|face pull|halo|crossover)\b/.test(n)) return false;
-  return /\b(press|bench|squat|deadlift|rdl|row|pull-?up|chin-?up|pulldown|dip|dips|lunge|step-up|thrust|clean|snatch|get-up|good morning|push-up)\b/.test(n);
+  if(/\b(press|bench|squat|deadlift|rdl|row|pull-?up|chin-?up|pulldown|dip|dips|lunge|step-up|thrust|clean|snatch|get-up|good morning|push-up)\b/.test(n)) return true;
+  const u=userMus(n); return !!(u && u.p && (u.h||[]).length);
 }
 // Your plan for a split day = what you actually did the last time you trained it, in that order.
 // Anything else you've done on that split day (last 8 sessions) becomes a swap suggestion.
@@ -1997,10 +2004,43 @@ const MUS_RULES=[
   [/\b(bench|chest press|push-?ups?|press-?ups?|incline|decline|floor press|svend|press)\b/, {chest:1, triceps:0.5, shoulders:0.5}]
 ];
 const _musMemo=new Map();
+// Your own answer ("what muscle does this work?") wins over the built-in rules.
+function userMus(name){ const M=(profile && profile.musMap)||{}; return M[String(name||"").toLowerCase()] || null; }
 function musclesOf(name){
   const n=String(name||"").toLowerCase(); if(_musMemo.has(n)) return _musMemo.get(n);
-  const hit=MUS_RULES.find(([re])=>re.test(n)); const m=hit?hit[1]:{}; _musMemo.set(n,m); return m;
+  const u=userMus(n); let m;
+  if(u && u.p){ m={[u.p]:1}; (u.h||[]).forEach(k=>{ if(k!==u.p) m[k]=0.5; }); }
+  else if(u && u.skip) m={};
+  else { const hit=MUS_RULES.find(([re])=>re.test(n)); m=hit?hit[1]:{}; }
+  _musMemo.set(n,m); return m;
 }
+const musKnown = name => Object.keys(musclesOf(name)).length>0 || !!userMus(name);
+let musAsk=null, musHelp=[];
+function askMuscle(name){ musAsk=name; const u=userMus(name); const cur=musclesOf(name); musHelp = u && u.h ? [...u.h] : Object.keys(cur).filter(k=>cur[k]<1); renderMusAsk(); }
+function renderMusAsk(){
+  const el=document.getElementById("musAsk"); if(!el) return;
+  if(!musAsk){ el.innerHTML=""; return; }
+  const cur=musclesOf(musAsk), main=Object.keys(cur).find(k=>cur[k]>=1);
+  el.innerHTML=`<div class="card musq"><label class="l" style="color:var(--accent)">Which muscle does this work?</label>
+    <div class="bwnote" style="margin:2px 0 10px"><b>${esc(musAsk)}</b>${main?` is counted as <b>${MUS_LABEL[main]}</b> right now. Change it if that's wrong.`:" is new to me. Pick its main muscle so your weekly sets per muscle stay right."}</div>
+    <div class="chips">${MUSCLES.map(([k,l])=>`<button type="button" class="${k===main?"on":""}" onclick="setMuscle('${k}')">${l}</button>`).join("")}</div>
+    <div class="schq" style="margin-top:12px">Also works (optional, counts as half a set)</div>
+    <div class="chips">${MUSCLES.filter(([k])=>k!==main).map(([k,l])=>`<button type="button" class="${musHelp.includes(k)?"on":""}" onclick="toggleHelp('${k}')">${l}</button>`).join("")}</div>
+    <div class="row2" style="display:flex;gap:8px;margin-top:12px"><button class="btn" style="margin:0;height:44px;font-size:15px;flex:2" onclick="saveMuscle()">${main?"Save":"Pick a main muscle"}</button><button class="btn ghost" style="margin:0;height:44px;font-size:15px;flex:1" onclick="skipMuscle()">Skip</button></div></div>`;
+}
+function setMuscle(k){ const prev=userMus(musAsk)||{}; storeMus(musAsk, {p:k, h:musHelp.filter(x=>x!==k)}, true); renderMusAsk(); }
+function toggleHelp(k){ musHelp = musHelp.includes(k) ? musHelp.filter(x=>x!==k) : [...musHelp, k]; const u=userMus(musAsk); if(u && u.p) storeMus(musAsk, {p:u.p, h:musHelp}, true); renderMusAsk(); }
+function storeMus(name, v, quiet){
+  if(!profile) return; profile.musMap={...(profile.musMap||{}), [String(name).toLowerCase()]:v}; store(KEYS.profile, profile); _musMemo.clear();
+}
+function saveMuscle(){
+  const cur=musclesOf(musAsk), main=Object.keys(cur).find(k=>cur[k]>=1);
+  if(!main){ toast("Tap its main muscle first"); return; }
+  if(!userMus(musAsk)) storeMus(musAsk, {p:main, h:musHelp.filter(x=>x!==main)});
+  toast(`${musAsk} counts for ${MUS_LABEL[main]}${musHelp.length?" (+ "+musHelp.filter(x=>x!==main).map(k=>MUS_LABEL[k]).join(", ")+")":""}`);
+  musAsk=null; renderLifts();
+}
+function skipMuscle(){ if(!musKnown(musAsk)) storeMus(musAsk, {skip:true}); musAsk=null; renderLifts(); toast("OK. It won't count toward a muscle"); }
 const musVerb = k => (k==="chest"||k==="back") ? "is" : "are";
 const primaryMus = name => Object.keys(musclesOf(name)).filter(k=>musclesOf(name)[k]>=1);
 // Hard sets per muscle over the 7 days ending on `end`.
@@ -2033,6 +2073,7 @@ function renderMuscleCard(){
         <div class="bar"><span class="zone" style="left:${pct(10)}%;width:${pct(20)-pct(10)}%"></span><i style="width:${pct(R.cur[k])}%"></i>${u!=null?`<u style="left:${pct(u)}%" title="your usual"></u>`:""}</div><b>${fmt(R.cur[k])}</b></div>`; }).join("")}
     ${R.behind.length?`<div class="bwnote" style="color:var(--hyper)">${R.behind.map(k=>MUS_LABEL[k]).join(", ")} ${R.behind.length===1?musVerb(R.behind[0]):"are"} behind your usual. Pick <b>More exercises</b> after a session that trains ${R.behind.length===1&&musVerb(R.behind[0])==="is"?"it":"them"}, and the app adds an exercise for ${R.behind.length===1&&musVerb(R.behind[0])==="is"?"it":"them"}.</div>`:""}
     ${none.length?`<div class="hint" style="margin-top:6px">Not trained this week: ${none.join(", ")}</div>`:""}
+    ${(()=>{ const unk=[...new Set(Object.keys(lifts).filter(d=>d>shift(localDate(new Date()),-28)).flatMap(d=>liftEntries(d).map(e=>e.name)))].filter(n=>!musKnown(n)); return unk.length?`<div class="bwnote" style="color:var(--accent)">Not counted yet: ${unk.map(n=>`<button type="button" class="mtag unk" onclick="showView('lifts');askMuscle('${jsq(n)}')">${esc(n)}</button>`).join(" ")} Tap one to pick its muscle.</div>`:""; })()}
     <div class="hint">Green zone: 10–20 sets a week, the range most research finds works well for growth. Grey tick: your usual week${R.hasBase?"":" (shows after 2 weeks of logging)"}. Helper muscles count half: bench is 1 set of chest plus ½ triceps and ½ shoulders.</div>`;
 }
 // What to pick under "Next time?" for this session.
@@ -2780,6 +2821,7 @@ function addSet(){
     else if(wE===pt.w && r>pt.r) msg=`${r-pt.r} more rep${r-pt.r===1?"":"s"} than last time on ${name} 👊`; }
   writeLifts(liftDate, [...liftEntries(liftDate), entry], looksOff ? null : msg);
   if(prefs.autoRest!==false && liftDate===localDate(new Date())) startRest(restFor(name));
+  if(!musKnown(name)){ askMuscle(name); setTimeout(()=>{ const q=document.getElementById("musAsk"); q && q.scrollIntoView({behavior:"smooth", block:"center"}); }, 50); }
   if(looksOff) toastAction(`${fmtW(weight)} ${U()} is way above your usual ${fmtW(usualMax)}. Typo?`, "Fix", ()=>editSet(entry.id));
 }
 let editId=null;
@@ -3050,7 +3092,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const okDate=k=>/^\d{4}-\d{2}-\d{2}$/.test(k);
     const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object"){ L[k]={...d.logs[k]}; if(!(typeof L[k].bw==="number" && L[k].bw>0 && L[k].bw<1000)) delete L[k].bw; } });
     const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1}; if(typeof e.forPlan==="string") o.forPlan=e.forPlan.slice(0,60); if(typeof e.t==="number") o.t=e.t; return o; }); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
-    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false, days:(Number(d.profile.days)>=2&&Number(d.profile.days)<=7)?Number(d.profile.days):undefined, sessMin:(Number(d.profile.sessMin)>=30&&Number(d.profile.sessMin)<=180)?Number(d.profile.sessMin):undefined, warmIn:d.profile.warmIn!==false} : profile;
+    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false, days:(Number(d.profile.days)>=2&&Number(d.profile.days)<=7)?Number(d.profile.days):undefined, sessMin:(Number(d.profile.sessMin)>=30&&Number(d.profile.sessMin)<=180)?Number(d.profile.sessMin):undefined, warmIn:d.profile.warmIn!==false, musMap:(()=>{ const o={}, M=d.profile.musMap; if(M && typeof M==="object") Object.keys(M).slice(0,300).forEach(k=>{ const v=M[k]; if(!v || typeof v!=="object" || k.length>60) return; if(v.skip) o[k]={skip:true}; else if(MUS_LABEL[v.p]) o[k]={p:v.p, h:Array.isArray(v.h)?v.h.filter(x=>MUS_LABEL[x]&&x!==v.p).slice(0,4):[]}; }); return o; })()} : profile;
     const FB={}; if(d.feedback && typeof d.feedback==="object") Object.keys(d.feedback).filter(okDate).forEach(k=>{ const f=d.feedback[k]; if(f && typeof f==="object"){ const o={}; if(FEEL.some(x=>x[0]===f.feel)) o.feel=f.feel; if(VOL.some(x=>x[0]===f.vol)) o.vol=f.vol; if(typeof f.split==="string") o.split=f.split.slice(0,30); if(o.vol==="moreEx" && MUS_LABEL[f.mus]) o.mus=f.mus; if(o.feel||o.vol) FB[k]=o; } });
     const SS={}; if(d.sessions && typeof d.sessions==="object") Object.keys(d.sessions).filter(okDate).forEach(k=>{ const v=d.sessions[k]; if(v && typeof v.start==="number"){ SS[k]={start:v.start}; if(typeof v.end==="number" && v.end>v.start) SS[k].end=v.end; else SS[k].end=v.start+60*60e3; } });
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X) || !store(KEYS.fb,FB) || !store(KEYS.sess,SS)) return;
