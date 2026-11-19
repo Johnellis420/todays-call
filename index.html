@@ -758,7 +758,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.25.0";
+const APP_VERSION = "1.25.1";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -2644,7 +2644,7 @@ function renderWeekPlan(){
   el.innerHTML=`<div class="card"><label class="l">Your week</label><div class="wkstrip">${cells}</div>
     ${(()=>{ const idx=W.days.findIndex(x=>x.d===wkSel); if(idx<0) return ""; const x=W.days[idx], S=SPLIT();
       const R=dayReasons(W, idx);
-      return `<div class="wkdet"><div class="wkh">${idx===0?"Today":esc(nice(x.d))} · <b>${esc(x.off?"Day off":x.sug?"Suggested rest":x.rested?"Rest":x.split)}</b>${x.pinned?' <span class="pinb">your pick</span>':""}</div>
+      return `<div class="wkdet"><div class="wkh">${idx===0?"Today":esc(nice(x.d))} · <b>${esc(x.off?"Day off":x.ciRest?"Rest (from your check-in)":x.due?"Rest due":x.sug?"Suggested rest":x.rested?"Rest":x.split)}</b>${x.pinned?' <span class="pinb">your pick</span>':""}</div>
         <div class="schq" style="margin-top:8px">Why</div>
         <ul class="wknotes" style="margin-top:0">${R.map(([t,c])=>`<li class="${c}">${esc(t)}</li>`).join("")}</ul>
         ${x.done?"":`<div class="schq">Change this day</div>
