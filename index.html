@@ -724,7 +724,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.17.0";
+const APP_VERSION = "1.18.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -738,22 +738,22 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
 
 /* ================= day types, templates, presets ================= */
 const DAYTYPES = {
-  "Chest / Biceps": {comp:["Bench Press","Incline DB Press","Cable Fly","Barbell Curl"], hyper:["Bench Press","Incline DB Press","Cable Fly","Barbell Curl","Hammer Curl"]},
-  "Back / Triceps": {comp:["Barbell Row","Weighted Pull-up","Tricep Pushdown","Skull Crusher"], hyper:["Lat Pulldown","Seated Cable Row","Barbell Row","Tricep Pushdown","Skull Crusher"]},
-  "Quads":          {comp:["Back Squat","Leg Press","Leg Extension","Calf Raise"], hyper:["Hack Squat","Leg Press","Bulgarian Split Squat","Leg Extension","Calf Raise"]},
-  "Hamstrings / Glutes": {comp:["Deadlift","Hip Thrust","Leg Curl","Calf Raise"], hyper:["Romanian Deadlift","Hip Thrust","Leg Curl","Back Extension","Calf Raise"]},
-  "Upper":          {comp:["Overhead Press","Incline Bench Press","Weighted Pull-up","Lateral Raise"], hyper:["Incline Bench Press","Lat Pulldown","DB Row","Lateral Raise","Hammer Curl"]},
-  "Lower":          {comp:["Deadlift","Bulgarian Split Squat","Leg Curl","Calf Raise"], hyper:["Romanian Deadlift","Hip Thrust","Leg Press","Leg Curl","Calf Raise"]},
-  "Push":           {comp:["Bench Press","Overhead Press","Incline DB Press","Tricep Pushdown"], hyper:["Incline DB Press","Machine Chest Press","Lateral Raise","Cable Fly","Tricep Pushdown"]},
-  "Pull":           {comp:["Barbell Row","Weighted Pull-up","Face Pull","Barbell Curl"], hyper:["Lat Pulldown","Seated Cable Row","Face Pull","Barbell Curl","Hammer Curl"]},
-  "Legs":           {comp:["Back Squat","Romanian Deadlift","Leg Press","Calf Raise"], hyper:["Hack Squat","Romanian Deadlift","Leg Press","Leg Curl","Leg Extension"]},
-  "Full Body":      {comp:["Back Squat","Bench Press","Barbell Row","Romanian Deadlift"], hyper:["Leg Press","Incline DB Press","Lat Pulldown","Romanian Deadlift","Lateral Raise"]},
-  "Chest":          {comp:["Bench Press","Incline Bench Press","Dips","Cable Fly"], hyper:["Incline DB Press","Machine Chest Press","Cable Fly","Pec Deck","Dips"]},
-  "Back":           {comp:["Deadlift","Barbell Row","Weighted Pull-up","Seated Cable Row"], hyper:["Lat Pulldown","Seated Cable Row","DB Row","Straight-Arm Pulldown","Face Pull"]},
-  "Shoulders":      {comp:["Overhead Press","Seated DB Press","Lateral Raise","Rear Delt Fly"], hyper:["Seated DB Press","Lateral Raise","Cable Lateral Raise","Rear Delt Fly","Face Pull"]},
-  "Arms":           {comp:["Close-Grip Bench Press","Barbell Curl","Skull Crusher","Hammer Curl"], hyper:["Barbell Curl","Tricep Pushdown","Incline DB Curl","Overhead Tricep Extension","Hammer Curl"]},
-  "Glutes":         {comp:["Hip Thrust","Bulgarian Split Squat","Romanian Deadlift","Glute Bridge"], hyper:["Hip Thrust","Bulgarian Split Squat","Cable Pull-Through","Reverse Lunge","Glute Bridge"]},
-  "Shoulders / Arms": {comp:["Overhead Press","Close-Grip Bench Press","Barbell Curl","Lateral Raise"], hyper:["Seated DB Press","Lateral Raise","Barbell Curl","Tricep Pushdown","Hammer Curl"]}
+  "Chest / Biceps": {comp:["Barbell Bench Press","Incline DB Press","Cable Fly","Barbell Curl"], hyper:["Barbell Bench Press","Incline DB Press","Cable Fly","Barbell Curl","DB Hammer Curl"]},
+  "Back / Triceps": {comp:["Barbell Row","Weighted Pull-up","Tricep Pushdown","EZ-Bar Skull Crusher"], hyper:["Lat Pulldown","Seated Cable Row","Barbell Row","Tricep Pushdown","EZ-Bar Skull Crusher"]},
+  "Quads":          {comp:["Barbell Back Squat","Leg Press","Leg Extension","Calf Raise"], hyper:["Hack Squat","Leg Press","DB Bulgarian Split Squat","Leg Extension","Calf Raise"]},
+  "Hamstrings / Glutes": {comp:["Barbell Deadlift","Barbell Hip Thrust","Leg Curl","Calf Raise"], hyper:["Barbell Romanian Deadlift","Barbell Hip Thrust","Leg Curl","Back Extension","Calf Raise"]},
+  "Upper":          {comp:["Barbell Overhead Press","Incline Barbell Bench Press","Weighted Pull-up","DB Lateral Raise"], hyper:["Incline Barbell Bench Press","Lat Pulldown","DB Row","DB Lateral Raise","DB Hammer Curl"]},
+  "Lower":          {comp:["Barbell Deadlift","DB Bulgarian Split Squat","Leg Curl","Calf Raise"], hyper:["Barbell Romanian Deadlift","Barbell Hip Thrust","Leg Press","Leg Curl","Calf Raise"]},
+  "Push":           {comp:["Barbell Bench Press","Barbell Overhead Press","Incline DB Press","Tricep Pushdown"], hyper:["Incline DB Press","Machine Chest Press","DB Lateral Raise","Cable Fly","Tricep Pushdown"]},
+  "Pull":           {comp:["Barbell Row","Weighted Pull-up","Face Pull","Barbell Curl"], hyper:["Lat Pulldown","Seated Cable Row","Face Pull","Barbell Curl","DB Hammer Curl"]},
+  "Legs":           {comp:["Barbell Back Squat","Barbell Romanian Deadlift","Leg Press","Calf Raise"], hyper:["Hack Squat","Barbell Romanian Deadlift","Leg Press","Leg Curl","Leg Extension"]},
+  "Full Body":      {comp:["Barbell Back Squat","Barbell Bench Press","Barbell Row","Barbell Romanian Deadlift"], hyper:["Leg Press","Incline DB Press","Lat Pulldown","Barbell Romanian Deadlift","DB Lateral Raise"]},
+  "Chest":          {comp:["Barbell Bench Press","Incline Barbell Bench Press","Dips","Cable Fly"], hyper:["Incline DB Press","Machine Chest Press","Cable Fly","Pec Deck","Dips"]},
+  "Back":           {comp:["Barbell Deadlift","Barbell Row","Weighted Pull-up","Seated Cable Row"], hyper:["Lat Pulldown","Seated Cable Row","DB Row","Straight-Arm Pulldown","Face Pull"]},
+  "Shoulders":      {comp:["Barbell Overhead Press","Seated DB Press","DB Lateral Raise","DB Rear Delt Fly"], hyper:["Seated DB Press","DB Lateral Raise","Cable Lateral Raise","DB Rear Delt Fly","Face Pull"]},
+  "Arms":           {comp:["Close-Grip Bench Press","Barbell Curl","EZ-Bar Skull Crusher","DB Hammer Curl"], hyper:["Barbell Curl","Tricep Pushdown","Incline DB Curl","Overhead Tricep Extension","DB Hammer Curl"]},
+  "Glutes":         {comp:["Barbell Hip Thrust","DB Bulgarian Split Squat","Barbell Romanian Deadlift","Glute Bridge"], hyper:["Barbell Hip Thrust","DB Bulgarian Split Squat","Cable Pull-Through","DB Reverse Lunge","Glute Bridge"]},
+  "Shoulders / Arms": {comp:["Barbell Overhead Press","Close-Grip Bench Press","Barbell Curl","DB Lateral Raise"], hyper:["Seated DB Press","DB Lateral Raise","Barbell Curl","Tricep Pushdown","DB Hammer Curl"]}
 };
 const PRESETS = [
   {name:"Push / Pull / Legs", days:["Push","Pull","Legs"]},
@@ -1286,7 +1286,7 @@ function renderLifts(){
   document.getElementById("liftDate").value=liftDate;
   const split=splitFor(liftDate);
   const dayCall = logs[liftDate]?.call==="comp" ? "comp" : "hyper";
-  const sug=[...new Set([...planList(split, dayCall, liftDate).names, ...suggestFor(split)])].slice(0,6);
+  const sug=[...planList(split, dayCall, liftDate).names, ...suggestFor(split)].filter((n,i,a)=>a.findIndex(x=>normEx(x)===normEx(n))===i).slice(0,6);
   document.getElementById("exChips").innerHTML=sug.map(n=>`<button onclick="pickEx('${jsq(n)}')">${esc(n)}</button>`).join("");
   const lib=[...Object.values(DAYTYPES).flatMap(x=>[...x.comp,...x.hyper]), ...Object.keys(EX)];
   const names=[...new Set([...allNames(),...lib])];
@@ -1385,14 +1385,14 @@ const EQUIP_PRESETS = [
 ];
 // eq: what the exercise needs ([] = bodyweight). alts: best substitutes, in order.
 const EX = {
-  "Bench Press":{eq:["barbell","bench"],alts:["DB Bench Press","Machine Chest Press","Push-up"]},
-  "DB Bench Press":{eq:["dumbbell","bench"],alts:["Bench Press","Machine Chest Press","Push-up"]},
-  "Machine Chest Press":{eq:["machine"],alts:["DB Bench Press","Bench Press","Push-up"]},
+  "Barbell Bench Press":{eq:["barbell","bench"],alts:["DB Bench Press","Machine Chest Press","Push-up"]},
+  "DB Bench Press":{eq:["dumbbell","bench"],alts:["Barbell Bench Press","Machine Chest Press","Push-up"]},
+  "Machine Chest Press":{eq:["machine"],alts:["DB Bench Press","Barbell Bench Press","Push-up"]},
   "Push-up":{eq:[],alts:["DB Bench Press","Machine Chest Press","Band Chest Press"]},
   "Band Chest Press":{eq:["bands"],alts:["Push-up","DB Bench Press"]},
-  "Incline DB Press":{eq:["dumbbell","bench"],alts:["Incline Bench Press","Incline Machine Press","Feet-Elevated Push-up"]},
-  "Incline Bench Press":{eq:["barbell","bench"],alts:["Incline DB Press","Incline Machine Press","Feet-Elevated Push-up"]},
-  "Incline Machine Press":{eq:["machine"],alts:["Incline DB Press","Incline Bench Press","Feet-Elevated Push-up"]},
+  "Incline DB Press":{eq:["dumbbell","bench"],alts:["Incline Barbell Bench Press","Incline Machine Press","Feet-Elevated Push-up"]},
+  "Incline Barbell Bench Press":{eq:["barbell","bench"],alts:["Incline DB Press","Incline Machine Press","Feet-Elevated Push-up"]},
+  "Incline Machine Press":{eq:["machine"],alts:["Incline DB Press","Incline Barbell Bench Press","Feet-Elevated Push-up"]},
   "Feet-Elevated Push-up":{eq:[],alts:["Incline DB Press","Push-up"]},
   "Cable Fly":{eq:["cable"],alts:["DB Fly","Pec Deck","Band Fly","Push-up"]},
   "Pec Deck":{eq:["machine"],alts:["Cable Fly","DB Fly","Band Fly"]},
@@ -1405,9 +1405,9 @@ const EX = {
   "DB Curl":{eq:["dumbbell"],alts:["Barbell Curl","Cable Curl","Band Curl"]},
   "Cable Curl":{eq:["cable"],alts:["DB Curl","Barbell Curl","Band Curl"]},
   "Band Curl":{eq:["bands"],alts:["DB Curl","Cable Curl"]},
-  "Hammer Curl":{eq:["dumbbell"],alts:["Rope Hammer Curl","Band Hammer Curl","Barbell Curl"]},
-  "Rope Hammer Curl":{eq:["cable"],alts:["Hammer Curl","Band Hammer Curl"]},
-  "Band Hammer Curl":{eq:["bands"],alts:["Hammer Curl","Rope Hammer Curl"]},
+  "DB Hammer Curl":{eq:["dumbbell"],alts:["Rope Hammer Curl","Band Hammer Curl","Barbell Curl"]},
+  "Rope Hammer Curl":{eq:["cable"],alts:["DB Hammer Curl","Band Hammer Curl"]},
+  "Band Hammer Curl":{eq:["bands"],alts:["DB Hammer Curl","Rope Hammer Curl"]},
   "Incline DB Curl":{eq:["dumbbell","bench"],alts:["DB Curl","Cable Curl","Band Curl"]},
   "Lat Pulldown":{eq:["cable"],alts:["Pull-up","Assisted Pull-up Machine","Band Lat Pulldown","DB Pullover"]},
   "Pull-up":{eq:["bar"],alts:["Lat Pulldown","Assisted Pull-up Machine","Band-Assisted Pull-up","Band Lat Pulldown"]},
@@ -1424,88 +1424,92 @@ const EX = {
   "Inverted Row":{eq:["bar"],alts:["DB Row","Band Row"]},
   "Straight-Arm Pulldown":{eq:["cable"],alts:["DB Pullover","Band Straight-Arm Pulldown"]},
   "Band Straight-Arm Pulldown":{eq:["bands"],alts:["DB Pullover","Straight-Arm Pulldown"]},
-  "Face Pull":{eq:["cable"],alts:["Band Face Pull","Rear Delt Fly","Reverse Pec Deck"]},
-  "Band Face Pull":{eq:["bands"],alts:["Face Pull","Rear Delt Fly","Band Pull-Apart"]},
-  "Rear Delt Fly":{eq:["dumbbell"],alts:["Reverse Pec Deck","Face Pull","Band Pull-Apart"]},
-  "Reverse Pec Deck":{eq:["machine"],alts:["Rear Delt Fly","Face Pull","Band Pull-Apart"]},
-  "Band Pull-Apart":{eq:["bands"],alts:["Rear Delt Fly","Face Pull"]},
+  "Face Pull":{eq:["cable"],alts:["Band Face Pull","DB Rear Delt Fly","Reverse Pec Deck"]},
+  "Band Face Pull":{eq:["bands"],alts:["Face Pull","DB Rear Delt Fly","Band Pull-Apart"]},
+  "DB Rear Delt Fly":{eq:["dumbbell"],alts:["Reverse Pec Deck","Face Pull","Band Pull-Apart"]},
+  "Reverse Pec Deck":{eq:["machine"],alts:["DB Rear Delt Fly","Face Pull","Band Pull-Apart"]},
+  "Band Pull-Apart":{eq:["bands"],alts:["DB Rear Delt Fly","Face Pull"]},
   "Tricep Pushdown":{eq:["cable"],alts:["Band Pushdown","Overhead DB Extension","Bench Dip","Close-Grip Push-up"]},
   "Band Pushdown":{eq:["bands"],alts:["Tricep Pushdown","Overhead DB Extension","Close-Grip Push-up"]},
-  "Skull Crusher":{eq:["barbell","bench"],alts:["DB Skull Crusher","Overhead DB Extension","Close-Grip Push-up"]},
-  "DB Skull Crusher":{eq:["dumbbell","bench"],alts:["Skull Crusher","Overhead DB Extension"]},
-  "Overhead Tricep Extension":{eq:["cable"],alts:["Overhead DB Extension","Skull Crusher","Band Overhead Extension"]},
-  "Overhead DB Extension":{eq:["dumbbell"],alts:["Overhead Tricep Extension","Skull Crusher","Band Overhead Extension"]},
+  "EZ-Bar Skull Crusher":{eq:["barbell","bench"],alts:["DB Skull Crusher","Overhead DB Extension","Close-Grip Push-up"]},
+  "DB Skull Crusher":{eq:["dumbbell","bench"],alts:["EZ-Bar Skull Crusher","Overhead DB Extension"]},
+  "Overhead Tricep Extension":{eq:["cable"],alts:["Overhead DB Extension","EZ-Bar Skull Crusher","Band Overhead Extension"]},
+  "Overhead DB Extension":{eq:["dumbbell"],alts:["Overhead Tricep Extension","EZ-Bar Skull Crusher","Band Overhead Extension"]},
   "Band Overhead Extension":{eq:["bands"],alts:["Overhead DB Extension","Close-Grip Push-up"]},
   "Close-Grip Bench Press":{eq:["barbell","bench"],alts:["DB Close-Grip Press","Dips","Close-Grip Push-up"]},
   "DB Close-Grip Press":{eq:["dumbbell","bench"],alts:["Close-Grip Bench Press","Close-Grip Push-up"]},
-  "Back Squat":{eq:["barbell"],alts:["Hack Squat","Leg Press","Goblet Squat","Bulgarian Split Squat"]},
-  "Hack Squat":{eq:["machine"],alts:["Leg Press","Back Squat","Goblet Squat"]},
-  "Leg Press":{eq:["machine"],alts:["Hack Squat","Goblet Squat","Bulgarian Split Squat"]},
-  "Goblet Squat":{eq:["dumbbell"],alts:["Back Squat","Leg Press","Bodyweight Squat"]},
-  "Bodyweight Squat":{eq:[],alts:["Goblet Squat","Bulgarian Split Squat"]},
-  "Bulgarian Split Squat":{eq:["bench"],alts:["Reverse Lunge","Walking Lunge","Step-up"]},
-  "Reverse Lunge":{eq:[],alts:["Bulgarian Split Squat","Walking Lunge"]},
-  "Walking Lunge":{eq:[],alts:["Reverse Lunge","Bulgarian Split Squat"]},
-  "Step-up":{eq:["bench"],alts:["Reverse Lunge","Bulgarian Split Squat"]},
+  "Barbell Back Squat":{eq:["barbell"],alts:["Hack Squat","Leg Press","Goblet Squat","DB Bulgarian Split Squat"]},
+  "Hack Squat":{eq:["machine"],alts:["Leg Press","Barbell Back Squat","Goblet Squat"]},
+  "Leg Press":{eq:["machine"],alts:["Hack Squat","Goblet Squat","DB Bulgarian Split Squat"]},
+  "Goblet Squat":{eq:["dumbbell"],alts:["Barbell Back Squat","Leg Press","Bodyweight Squat"]},
+  "Bodyweight Squat":{eq:[],alts:["Goblet Squat","DB Bulgarian Split Squat"]},
+  "DB Bulgarian Split Squat":{eq:["dumbbell","bench"],alts:["DB Reverse Lunge","DB Walking Lunge","DB Step-up","Bodyweight Split Squat"]},
+  "DB Reverse Lunge":{eq:["dumbbell"],alts:["DB Bulgarian Split Squat","DB Walking Lunge","Bodyweight Lunge"]},
+  "DB Walking Lunge":{eq:["dumbbell"],alts:["DB Reverse Lunge","DB Bulgarian Split Squat","Bodyweight Lunge"]},
+  "DB Step-up":{eq:["dumbbell","bench"],alts:["DB Reverse Lunge","DB Bulgarian Split Squat","Bodyweight Step-up"]},
   "Leg Extension":{eq:["machine"],alts:["Band Leg Extension","Sissy Squat","Goblet Squat"]},
   "Band Leg Extension":{eq:["bands"],alts:["Sissy Squat","Leg Extension"]},
   "Sissy Squat":{eq:[],alts:["Leg Extension","Goblet Squat"]},
-  "Leg Curl":{eq:["machine"],alts:["Nordic Curl","Slider Leg Curl","Band Leg Curl","Romanian Deadlift"]},
+  "Leg Curl":{eq:["machine"],alts:["Nordic Curl","Slider Leg Curl","Band Leg Curl","Barbell Romanian Deadlift"]},
   "Nordic Curl":{eq:[],alts:["Leg Curl","Slider Leg Curl"]},
   "Slider Leg Curl":{eq:[],alts:["Leg Curl","Nordic Curl"]},
   "Band Leg Curl":{eq:["bands"],alts:["Leg Curl","Slider Leg Curl"]},
   "Calf Raise":{eq:["machine"],alts:["DB Calf Raise","Single-Leg Calf Raise"]},
   "DB Calf Raise":{eq:["dumbbell"],alts:["Calf Raise","Single-Leg Calf Raise"]},
   "Single-Leg Calf Raise":{eq:[],alts:["DB Calf Raise","Calf Raise"]},
-  "Deadlift":{eq:["barbell"],alts:["Trap Bar Deadlift","DB Deadlift","Romanian Deadlift"]},
-  "Trap Bar Deadlift":{eq:["barbell"],alts:["Deadlift","DB Deadlift"]},
-  "DB Deadlift":{eq:["dumbbell"],alts:["Deadlift","DB Romanian Deadlift"]},
-  "Romanian Deadlift":{eq:["barbell"],alts:["DB Romanian Deadlift","Single-Leg RDL","Cable Pull-Through"]},
-  "DB Romanian Deadlift":{eq:["dumbbell"],alts:["Romanian Deadlift","Single-Leg RDL","Band Good Morning"]},
-  "Single-Leg RDL":{eq:[],alts:["DB Romanian Deadlift","Romanian Deadlift"]},
-  "Cable Pull-Through":{eq:["cable"],alts:["Romanian Deadlift","Band Good Morning"]},
-  "Band Good Morning":{eq:["bands"],alts:["DB Romanian Deadlift","Single-Leg RDL"]},
-  "Hip Thrust":{eq:["barbell","bench"],alts:["DB Hip Thrust","Hip Thrust Machine","Glute Bridge"]},
-  "DB Hip Thrust":{eq:["dumbbell","bench"],alts:["Hip Thrust","Glute Bridge"]},
-  "Hip Thrust Machine":{eq:["machine"],alts:["Hip Thrust","DB Hip Thrust"]},
-  "Glute Bridge":{eq:[],alts:["DB Hip Thrust","Hip Thrust"]},
+  "Barbell Deadlift":{eq:["barbell"],alts:["Trap Bar Deadlift","DB Deadlift","Barbell Romanian Deadlift"]},
+  "Trap Bar Deadlift":{eq:["barbell"],alts:["Barbell Deadlift","DB Deadlift"]},
+  "DB Deadlift":{eq:["dumbbell"],alts:["Barbell Deadlift","DB Romanian Deadlift"]},
+  "Barbell Romanian Deadlift":{eq:["barbell"],alts:["DB Romanian Deadlift","DB Single-Leg RDL","Cable Pull-Through"]},
+  "DB Romanian Deadlift":{eq:["dumbbell"],alts:["Barbell Romanian Deadlift","DB Single-Leg RDL","Band Good Morning"]},
+  "DB Single-Leg RDL":{eq:["dumbbell"],alts:["DB Romanian Deadlift","Barbell Romanian Deadlift","Single-Leg Glute Bridge"]},
+  "Cable Pull-Through":{eq:["cable"],alts:["Barbell Romanian Deadlift","Band Good Morning"]},
+  "Band Good Morning":{eq:["bands"],alts:["DB Romanian Deadlift","DB Single-Leg RDL"]},
+  "Barbell Hip Thrust":{eq:["barbell","bench"],alts:["DB Hip Thrust","Hip Thrust Machine","Glute Bridge"]},
+  "DB Hip Thrust":{eq:["dumbbell","bench"],alts:["Barbell Hip Thrust","Glute Bridge"]},
+  "Hip Thrust Machine":{eq:["machine"],alts:["Barbell Hip Thrust","DB Hip Thrust"]},
+  "Glute Bridge":{eq:[],alts:["DB Hip Thrust","Barbell Hip Thrust"]},
   "Back Extension":{eq:["machine"],alts:["DB Romanian Deadlift","Band Good Morning","Superman"]},
-  "Superman":{eq:[],alts:["Back Extension","Single-Leg RDL"]},
-  "Overhead Press":{eq:["barbell"],alts:["Seated DB Press","Machine Shoulder Press","Pike Push-up"]},
-  "Seated DB Press":{eq:["dumbbell","bench"],alts:["Overhead Press","Machine Shoulder Press","Standing DB Press","Pike Push-up"]},
-  "Standing DB Press":{eq:["dumbbell"],alts:["Seated DB Press","Overhead Press","Pike Push-up"]},
-  "Machine Shoulder Press":{eq:["machine"],alts:["Seated DB Press","Overhead Press","Pike Push-up"]},
+  "Superman":{eq:[],alts:["Back Extension","DB Single-Leg RDL"]},
+  "Barbell Overhead Press":{eq:["barbell"],alts:["Seated DB Press","Machine Shoulder Press","Pike Push-up"]},
+  "Seated DB Press":{eq:["dumbbell","bench"],alts:["Barbell Overhead Press","Machine Shoulder Press","Standing DB Press","Pike Push-up"]},
+  "Standing DB Press":{eq:["dumbbell"],alts:["Seated DB Press","Barbell Overhead Press","Pike Push-up"]},
+  "Machine Shoulder Press":{eq:["machine"],alts:["Seated DB Press","Barbell Overhead Press","Pike Push-up"]},
   "Pike Push-up":{eq:[],alts:["Standing DB Press","Band Overhead Press"]},
   "Band Overhead Press":{eq:["bands"],alts:["Standing DB Press","Pike Push-up"]},
-  "Lateral Raise":{eq:["dumbbell"],alts:["Cable Lateral Raise","Machine Lateral Raise","Band Lateral Raise"]},
-  "Cable Lateral Raise":{eq:["cable"],alts:["Lateral Raise","Machine Lateral Raise","Band Lateral Raise"]},
-  "Machine Lateral Raise":{eq:["machine"],alts:["Lateral Raise","Cable Lateral Raise"]},
-  "Band Lateral Raise":{eq:["bands"],alts:["Lateral Raise","Cable Lateral Raise"]}
+  "DB Lateral Raise":{eq:["dumbbell"],alts:["Cable Lateral Raise","Machine Lateral Raise","Band Lateral Raise"]},
+  "Cable Lateral Raise":{eq:["cable"],alts:["DB Lateral Raise","Machine Lateral Raise","Band Lateral Raise"]},
+  "Machine Lateral Raise":{eq:["machine"],alts:["DB Lateral Raise","Cable Lateral Raise"]},
+  "Band Lateral Raise":{eq:["bands"],alts:["DB Lateral Raise","Cable Lateral Raise"]}
 };
 // ---- kettlebell moves ----
 Object.assign(EX, {
   "Kettlebell Swing":{eq:["kettlebell"],alts:["KB Romanian Deadlift","Cable Pull-Through","DB Romanian Deadlift","Glute Bridge"]},
-  "KB Goblet Squat":{eq:["kettlebell"],alts:["Goblet Squat","KB Front Squat","Back Squat","Bodyweight Squat"]},
-  "KB Front Squat":{eq:["kettlebell"],alts:["KB Goblet Squat","Back Squat","Goblet Squat"]},
-  "KB Deadlift":{eq:["kettlebell"],alts:["DB Deadlift","Deadlift","KB Romanian Deadlift"]},
-  "KB Romanian Deadlift":{eq:["kettlebell"],alts:["DB Romanian Deadlift","Romanian Deadlift","KB Single-Leg RDL"]},
-  "KB Single-Leg RDL":{eq:["kettlebell"],alts:["Single-Leg RDL","KB Romanian Deadlift"]},
-  "KB Reverse Lunge":{eq:["kettlebell"],alts:["Reverse Lunge","Bulgarian Split Squat","Walking Lunge"]},
-  "KB Glute Bridge":{eq:["kettlebell"],alts:["Glute Bridge","DB Hip Thrust","Hip Thrust"]},
+  "KB Goblet Squat":{eq:["kettlebell"],alts:["Goblet Squat","KB Front Squat","Barbell Back Squat","Bodyweight Squat"]},
+  "KB Front Squat":{eq:["kettlebell"],alts:["KB Goblet Squat","Barbell Back Squat","Goblet Squat"]},
+  "KB Deadlift":{eq:["kettlebell"],alts:["DB Deadlift","Barbell Deadlift","KB Romanian Deadlift"]},
+  "KB Romanian Deadlift":{eq:["kettlebell"],alts:["DB Romanian Deadlift","Barbell Romanian Deadlift","KB Single-Leg RDL"]},
+  "KB Single-Leg RDL":{eq:["kettlebell"],alts:["DB Single-Leg RDL","KB Romanian Deadlift"]},
+  "KB Reverse Lunge":{eq:["kettlebell"],alts:["DB Reverse Lunge","DB Bulgarian Split Squat","DB Walking Lunge"]},
+  "KB Glute Bridge":{eq:["kettlebell"],alts:["Glute Bridge","DB Hip Thrust","Barbell Hip Thrust"]},
   "KB Calf Raise":{eq:["kettlebell"],alts:["DB Calf Raise","Single-Leg Calf Raise","Calf Raise"]},
-  "KB Floor Press":{eq:["kettlebell"],alts:["DB Bench Press","Push-up","Bench Press"]},
-  "KB Overhead Press":{eq:["kettlebell"],alts:["Standing DB Press","Overhead Press","Pike Push-up"]},
-  "KB Push Press":{eq:["kettlebell"],alts:["KB Overhead Press","Overhead Press","Standing DB Press"]},
-  "KB Halo":{eq:["kettlebell"],alts:["Band Pull-Apart","Lateral Raise"]},
+  "KB Floor Press":{eq:["kettlebell"],alts:["DB Bench Press","Push-up","Barbell Bench Press"]},
+  "KB Overhead Press":{eq:["kettlebell"],alts:["Standing DB Press","Barbell Overhead Press","Pike Push-up"]},
+  "KB Push Press":{eq:["kettlebell"],alts:["KB Overhead Press","Barbell Overhead Press","Standing DB Press"]},
+  "KB Halo":{eq:["kettlebell"],alts:["Band Pull-Apart","DB Lateral Raise"]},
   "KB Row":{eq:["kettlebell"],alts:["DB Row","KB Gorilla Row","Band Row","Inverted Row"]},
   "KB Gorilla Row":{eq:["kettlebell"],alts:["KB Row","Barbell Row","DB Row"]},
-  "KB High Pull":{eq:["kettlebell"],alts:["Face Pull","Band Face Pull","Rear Delt Fly"]},
+  "KB High Pull":{eq:["kettlebell"],alts:["Face Pull","Band Face Pull","DB Rear Delt Fly"]},
   "KB Pullover":{eq:["kettlebell","bench"],alts:["DB Pullover","Straight-Arm Pulldown"]},
-  "KB Curl":{eq:["kettlebell"],alts:["DB Curl","Band Curl","Hammer Curl"]},
+  "KB Curl":{eq:["kettlebell"],alts:["DB Curl","Band Curl","DB Hammer Curl"]},
   "KB Overhead Tricep Extension":{eq:["kettlebell"],alts:["Overhead DB Extension","Band Overhead Extension","Close-Grip Push-up"]},
   "KB Clean":{eq:["kettlebell"],alts:["Kettlebell Swing","KB High Pull"]},
   "KB Snatch":{eq:["kettlebell"],alts:["Kettlebell Swing","KB Clean"]},
   "Turkish Get-up":{eq:["kettlebell"],alts:["KB Halo","Pike Push-up"]},
+  "Bodyweight Split Squat":{eq:["bench"],alts:["DB Bulgarian Split Squat","Bodyweight Lunge"]},
+  "Bodyweight Lunge":{eq:[],alts:["DB Reverse Lunge","DB Walking Lunge"]},
+  "Bodyweight Step-up":{eq:["bench"],alts:["DB Step-up","Bodyweight Lunge"]},
+  "Single-Leg Glute Bridge":{eq:[],alts:["Glute Bridge","DB Single-Leg RDL"]},
   "Adductor Machine":{eq:["machine"],alts:["Cable Hip Adduction","Copenhagen Plank"]},
   "Cable Hip Adduction":{eq:["cable"],alts:["Adductor Machine","Copenhagen Plank"]},
   "Copenhagen Plank":{eq:["bench"],alts:["Adductor Machine","Cable Hip Adduction"]},
@@ -1522,23 +1526,24 @@ Object.assign(EX, {
   "Decline Crunch":{eq:["bench"],alts:["Cable Crunch","Hanging Leg Raise","Plank"]}
 });
 const KB_ALTS = {
-  "Bench Press":["KB Floor Press"],"DB Bench Press":["KB Floor Press"],"Machine Chest Press":["KB Floor Press"],"Push-up":["KB Floor Press"],
-  "Back Squat":["KB Goblet Squat"],"Hack Squat":["KB Goblet Squat"],"Leg Press":["KB Goblet Squat"],"Goblet Squat":["KB Goblet Squat"],"Bodyweight Squat":["KB Goblet Squat"],
-  "Bulgarian Split Squat":["KB Reverse Lunge"],"Reverse Lunge":["KB Reverse Lunge"],"Walking Lunge":["KB Reverse Lunge"],
-  "Deadlift":["KB Deadlift"],"Trap Bar Deadlift":["KB Deadlift"],"DB Deadlift":["KB Deadlift"],
-  "Romanian Deadlift":["KB Romanian Deadlift","Kettlebell Swing"],"DB Romanian Deadlift":["KB Romanian Deadlift"],"Single-Leg RDL":["KB Single-Leg RDL"],
+  "Barbell Bench Press":["KB Floor Press"],"DB Bench Press":["KB Floor Press"],"Machine Chest Press":["KB Floor Press"],"Push-up":["KB Floor Press"],
+  "Barbell Back Squat":["KB Goblet Squat"],"Hack Squat":["KB Goblet Squat"],"Leg Press":["KB Goblet Squat"],"Goblet Squat":["KB Goblet Squat"],"Bodyweight Squat":["KB Goblet Squat"],
+  "DB Bulgarian Split Squat":["KB Reverse Lunge"],"DB Reverse Lunge":["KB Reverse Lunge"],"DB Walking Lunge":["KB Reverse Lunge"],
+  "Barbell Deadlift":["KB Deadlift"],"Trap Bar Deadlift":["KB Deadlift"],"DB Deadlift":["KB Deadlift"],
+  "Barbell Romanian Deadlift":["KB Romanian Deadlift","Kettlebell Swing"],"DB Romanian Deadlift":["KB Romanian Deadlift"],"DB Single-Leg RDL":["KB Single-Leg RDL"],
   "Cable Pull-Through":["Kettlebell Swing"],"Back Extension":["Kettlebell Swing"],"Leg Curl":["KB Romanian Deadlift"],
-  "Hip Thrust":["KB Glute Bridge"],"DB Hip Thrust":["KB Glute Bridge"],"Hip Thrust Machine":["KB Glute Bridge"],"Glute Bridge":["KB Glute Bridge"],
+  "Barbell Hip Thrust":["KB Glute Bridge"],"DB Hip Thrust":["KB Glute Bridge"],"Hip Thrust Machine":["KB Glute Bridge"],"Glute Bridge":["KB Glute Bridge"],
   "Calf Raise":["KB Calf Raise"],"DB Calf Raise":["KB Calf Raise"],
-  "Overhead Press":["KB Overhead Press"],"Seated DB Press":["KB Overhead Press"],"Standing DB Press":["KB Overhead Press"],"Machine Shoulder Press":["KB Overhead Press"],
+  "Barbell Overhead Press":["KB Overhead Press"],"Seated DB Press":["KB Overhead Press"],"Standing DB Press":["KB Overhead Press"],"Machine Shoulder Press":["KB Overhead Press"],
   "Barbell Row":["KB Row"],"DB Row":["KB Row"],"Seated Cable Row":["KB Row"],"Machine Row":["KB Row"],"Band Row":["KB Row"],
-  "Face Pull":["KB High Pull"],"Rear Delt Fly":["KB High Pull"],
+  "Face Pull":["KB High Pull"],"DB Rear Delt Fly":["KB High Pull"],
   "DB Pullover":["KB Pullover"],"Straight-Arm Pulldown":["KB Pullover"],
-  "Barbell Curl":["KB Curl"],"DB Curl":["KB Curl"],"Cable Curl":["KB Curl"],"Hammer Curl":["KB Curl"],
-  "Overhead DB Extension":["KB Overhead Tricep Extension"],"Tricep Pushdown":["KB Overhead Tricep Extension"],"Skull Crusher":["KB Overhead Tricep Extension"],"Overhead Tricep Extension":["KB Overhead Tricep Extension"]
+  "Barbell Curl":["KB Curl"],"DB Curl":["KB Curl"],"Cable Curl":["KB Curl"],"DB Hammer Curl":["KB Curl"],
+  "Overhead DB Extension":["KB Overhead Tricep Extension"],"Tricep Pushdown":["KB Overhead Tricep Extension"],"EZ-Bar Skull Crusher":["KB Overhead Tricep Extension"],"Overhead Tricep Extension":["KB Overhead Tricep Extension"]
 };
 Object.entries(KB_ALTS).forEach(([k,v])=>{ if(EX[k]) v.forEach(a=>{ if(!EX[k].alts.includes(a)) EX[k].alts.push(a); }); });
-const exKey = n => Object.keys(EX).find(k=>k.toLowerCase()===String(n).toLowerCase());
+const EX_ALIAS = {"Bench Press": "Barbell Bench Press", "Incline Bench Press": "Incline Barbell Bench Press", "Overhead Press": "Barbell Overhead Press", "Back Squat": "Barbell Back Squat", "Deadlift": "Barbell Deadlift", "Romanian Deadlift": "Barbell Romanian Deadlift", "Hip Thrust": "Barbell Hip Thrust", "Skull Crusher": "EZ-Bar Skull Crusher", "Lateral Raise": "DB Lateral Raise", "Hammer Curl": "DB Hammer Curl", "Rear Delt Fly": "DB Rear Delt Fly", "Bulgarian Split Squat": "DB Bulgarian Split Squat", "Reverse Lunge": "DB Reverse Lunge", "Walking Lunge": "DB Walking Lunge", "Step-up": "DB Step-up", "Single-Leg RDL": "DB Single-Leg RDL"};
+const exKey = n => { const l=String(n).toLowerCase(); return Object.keys(EX).find(k=>k.toLowerCase()===l) || Object.keys(EX_ALIAS).filter(k=>k.toLowerCase()===l).map(k=>EX_ALIAS[k])[0]; };
 function withKbDefault(e){ const o=Object.assign({barbell:true,dumbbell:true,bench:true,cable:true,machine:true,bar:true,bands:true}, e||{}); if(!("kettlebell" in o)) o.kettlebell = !e || Object.values(e).every(Boolean); return o; }
 const equip = () => withKbDefault(profile && profile.equip);
 function hasEq(name){ const k=exKey(name); if(!k) return true; const E=equip(); return EX[k].eq.every(e=>E[e]!==false); }
@@ -1547,8 +1552,9 @@ function eqText(name){ const k=exKey(name); if(!k) return ""; const e=EX[k].eq; 
 function autoAlt(name){ const ok=altsFor(name).filter(a=>hasEq(a)); return ok.find(a=>EX[exKey(a)].eq.length) || ok[0] || name; }
 let daySwaps = load("tc.swaps", {});   // date -> {original: replacement}
 function resolveName(orig, date, mine){
-  const d=(daySwaps[date]||{})[orig]; if(d) return d;
-  const pm=(profile&&profile.swaps||{})[orig]; if(pm) return pm;
+  const same=(o,key)=>o[key] || o[Object.keys(o).find(k=>normEx(k)===normEx(key))];
+  const d=same(daySwaps[date]||{}, orig); if(d) return d;
+  const pm=same((profile&&profile.swaps)||{}, orig); if(pm) return pm;
   if(!mine && !hasEq(orig)) return autoAlt(orig);
   return orig;
 }
@@ -1643,8 +1649,8 @@ function planList(split, call, before){
   return {names, mine:true, n:u.n, pool, last:u.last, fb, added};
 }
 // An exercise for this split day that isn't already in the plan, and that you have equipment for.
-// "Barbell Bench Press", "Bench Press" and "Seated DB Press" vs "Sitting Dumbbell Press" count as the same lift.
-function normEx(n){ return String(n).toLowerCase().replace(/\bdumbbells?\b/g,"db").replace(/\b(barbell|bb|seated|sitting|standing|single|single-arm|one-arm)\b/g,"").replace(/[^a-z]/g,""); }
+// "Barbell Bench Press", "Barbell Bench Press" and "Seated DB Press" vs "Sitting Dumbbell Press" count as the same lift.
+function normEx(n){ const k=exKey(n); if(k && EX_ALIAS[Object.keys(EX_ALIAS).find(a=>a.toLowerCase()===String(n).toLowerCase())]) n=k; return String(n).toLowerCase().replace(/\bdumbbells?\b/g,"db").replace(/\b(barbell|bb|seated|sitting|standing|single|single-arm|one-arm)\b/g,"").replace(/[^a-z]/g,""); }
 function extraFor(split, call, have){
   const low=new Set(have.map(normEx));
   const t=DAYTYPES[typeOf(split)]; if(!t) return null;
@@ -2177,24 +2183,24 @@ function bumpBw(d){
 // Lines like "3 chest", "Three chest", "2 rowing", "1 rear delts", or exercise names like "Bench Press 4x8".
 // A blank line (or a heading like "Day 2:" / "Monday") starts a new day.
 const RT_CATS=[
-  {k:"rear",  re:/\brear\b|reverse fly|face pull/, lbl:"rear delts", mus:"shoulders", pool:["Rear Delt Fly","Face Pull","Reverse Pec Deck","Band Pull-Apart"]},
+  {k:"rear",  re:/\brear\b|reverse fly|face pull/, lbl:"rear delts", mus:"shoulders", pool:["DB Rear Delt Fly","Face Pull","Reverse Pec Deck","Band Pull-Apart"]},
   {k:"add",   re:/\badd?uct\w*|\binner thighs?\b|\bgroin\b/, lbl:"adductors", mus:"adductors", pool:["Adductor Machine","Cable Hip Adduction","Copenhagen Plank"]},
   {k:"abd",   re:/\babduct\w*|\bouter thighs?\b/, lbl:"abductors", mus:"glutes", pool:["Hip Abduction Machine","Band Hip Abduction"]},
   {k:"row",   re:/\brow(s|ing)?\b/, lbl:"rows", mus:"back", pool:["Barbell Row","Seated Cable Row","DB Row","Machine Row","Inverted Row"]},
   {k:"pd",    re:/\bpull ?-?downs?\b|\blat pull\w*|\bpull ?-?ups?\b|\bchin ?-?ups?\b|\bvertical\b/, lbl:"pulldowns", mus:"back", pool:["Lat Pulldown","Pull-up","Straight-Arm Pulldown","Weighted Pull-up","Assisted Pull-up Machine"]},
   {k:"trap",  re:/\btraps?\b|shrugs?/, lbl:"traps", mus:"back", pool:["DB Shrug","Barbell Shrug"]},
-  {k:"chest", re:/\bchest\b|\bpecs?\b/, lbl:"chest", mus:"chest", pool:["Bench Press","Incline DB Press","Cable Fly","Machine Chest Press","Incline Bench Press","DB Bench Press","Pec Deck","DB Fly","Dips","Push-up"]},
-  {k:"sh",    re:/\bshoulders?\b|\bdelts?\b|\blaterals?\b|\bside raises?\b/, lbl:"shoulders", mus:"shoulders", pool:["Seated DB Press","Lateral Raise","Overhead Press","Cable Lateral Raise","Machine Shoulder Press","Machine Lateral Raise"]},
-  {k:"bi",    re:/\bbi(s|cep|ceps)?\b/, lbl:"biceps", mus:"biceps", pool:["Barbell Curl","Hammer Curl","Incline DB Curl","Cable Curl","DB Curl","Rope Hammer Curl"]},
-  {k:"tri",   re:/\btri(s|cep|ceps)?\b/, lbl:"triceps", mus:"triceps", pool:["Tricep Pushdown","Overhead Tricep Extension","Skull Crusher","Close-Grip Bench Press","Overhead DB Extension","Dips"]},
-  {k:"quad",  re:/\bquads?\b|quadriceps/, lbl:"quads", mus:"quads", pool:["Back Squat","Leg Press","Leg Extension","Hack Squat","Bulgarian Split Squat","Walking Lunge","Goblet Squat"]},
-  {k:"ham",   re:/\bhams?\b|hamstrings?/, lbl:"hamstrings", mus:"hams", pool:["Romanian Deadlift","Leg Curl","Single-Leg RDL","Nordic Curl"]},
-  {k:"glute", re:/\bglutes?\b|\bbutt\b|\bbooty\b/, lbl:"glutes", mus:"glutes", pool:["Hip Thrust","Bulgarian Split Squat","Glute Bridge","Cable Pull-Through","Hip Abduction Machine"]},
+  {k:"chest", re:/\bchest\b|\bpecs?\b/, lbl:"chest", mus:"chest", pool:["Barbell Bench Press","Incline DB Press","Cable Fly","Machine Chest Press","Incline Barbell Bench Press","DB Bench Press","Pec Deck","DB Fly","Dips","Push-up"]},
+  {k:"sh",    re:/\bshoulders?\b|\bdelts?\b|\blaterals?\b|\bside raises?\b/, lbl:"shoulders", mus:"shoulders", pool:["Seated DB Press","DB Lateral Raise","Barbell Overhead Press","Cable Lateral Raise","Machine Shoulder Press","Machine Lateral Raise"]},
+  {k:"bi",    re:/\bbi(s|cep|ceps)?\b/, lbl:"biceps", mus:"biceps", pool:["Barbell Curl","DB Hammer Curl","Incline DB Curl","Cable Curl","DB Curl","Rope Hammer Curl"]},
+  {k:"tri",   re:/\btri(s|cep|ceps)?\b/, lbl:"triceps", mus:"triceps", pool:["Tricep Pushdown","Overhead Tricep Extension","EZ-Bar Skull Crusher","Close-Grip Bench Press","Overhead DB Extension","Dips"]},
+  {k:"quad",  re:/\bquads?\b|quadriceps/, lbl:"quads", mus:"quads", pool:["Barbell Back Squat","Leg Press","Leg Extension","Hack Squat","DB Bulgarian Split Squat","DB Walking Lunge","Goblet Squat"]},
+  {k:"ham",   re:/\bhams?\b|hamstrings?/, lbl:"hamstrings", mus:"hams", pool:["Barbell Romanian Deadlift","Leg Curl","DB Single-Leg RDL","Nordic Curl"]},
+  {k:"glute", re:/\bglutes?\b|\bbutt\b|\bbooty\b/, lbl:"glutes", mus:"glutes", pool:["Barbell Hip Thrust","DB Bulgarian Split Squat","Glute Bridge","Cable Pull-Through","Hip Abduction Machine"]},
   {k:"calf",  re:/\bcalf\b|\bcalves\b/, lbl:"calves", mus:"calves", pool:["Calf Raise","Seated Calf Raise","DB Calf Raise","Single-Leg Calf Raise"]},
   {k:"abs",   re:/\babs?\b|\bcore\b|obliques?/, lbl:"abs", mus:"abs", pool:["Cable Crunch","Hanging Leg Raise","Ab Wheel Rollout","Plank","Decline Crunch"]},
   {k:"back",  re:/\bback\b|\blats?\b/, lbl:"back", mus:"back", pool:["Barbell Row","Lat Pulldown","Seated Cable Row","Pull-up","DB Row","Straight-Arm Pulldown"]},
-  {k:"legs",  re:/\blegs?\b/, lbl:"legs", mus:"quads", pool:["Back Squat","Romanian Deadlift","Leg Press","Leg Curl","Leg Extension"]},
-  {k:"arms",  re:/\barms?\b/, lbl:"arms", mus:"biceps", pool:["Barbell Curl","Tricep Pushdown","Hammer Curl","Overhead Tricep Extension"]}
+  {k:"legs",  re:/\blegs?\b/, lbl:"legs", mus:"quads", pool:["Barbell Back Squat","Barbell Romanian Deadlift","Leg Press","Leg Curl","Leg Extension"]},
+  {k:"arms",  re:/\barms?\b/, lbl:"arms", mus:"biceps", pool:["Barbell Curl","Tricep Pushdown","DB Hammer Curl","Overhead Tricep Extension"]}
 ];
 const NUMW={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,a:1,an:1,single:1,couple:2,pair:2};
 function parseRoutine(text){
@@ -2279,7 +2285,7 @@ function openRoutine(prefix){
 }
 function previewRoutine(prefix){
   const txt=document.getElementById(prefix+"RtText").value, R=buildRoutine(txt), out=document.getElementById(prefix+"RtOut");
-  if(!R.length){ out.innerHTML=`<div class="bwnote" style="color:#e8b04a">I couldn't find any days in that. Try lines like "3 chest" or "Bench Press", with a blank line between days.</div>`; rtPreview=null; return; }
+  if(!R.length){ out.innerHTML=`<div class="bwnote" style="color:#e8b04a">I couldn't find any days in that. Try lines like "3 chest" or "Barbell Bench Press", with a blank line between days.</div>`; rtPreview=null; return; }
   const curSplit = prefix==="st" ? profile.split : null, keep = curSplit && curSplit.length===R.length;
   rtPreview={prefix, days:R};
   out.innerHTML=`<div class="sgh" style="margin-top:14px">Your week · ${R.length} day${R.length===1?"":"s"}</div>
