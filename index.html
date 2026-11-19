@@ -485,7 +485,7 @@
       <datalist id="exList"></datalist>
     </div>
     <div class="trio">
-      <div class="mini"><label for="wIn">Weight (<span class="U">lb</span>)</label>
+      <div class="mini"><label for="wIn" id="wLbl">Weight (<span class="U">lb</span>)</label>
         <div class="box"><button onclick="bump('wIn',-5)">−</button><input id="wIn" type="number" inputmode="decimal" min="0" step="2.5" placeholder="0"><button onclick="bump('wIn',5)">+</button></div></div>
       <div class="mini"><label for="rIn">Reps</label>
         <div class="box"><button onclick="bump('rIn',-1)">−</button><input id="rIn" type="number" inputmode="numeric" min="1" step="1" placeholder="0"><button onclick="bump('rIn',1)">+</button></div></div>
@@ -495,7 +495,7 @@
     <div class="last" id="lastTime"></div>
     <button class="btn" style="margin-top:12px" onclick="addSet()">Add set</button>
     <div class="rclock sm" id="rClockL"></div>
-    <div class="hint">Bodyweight moves: enter 0, or just the added weight.</div>
+    <div class="hint">Bodyweight moves: enter 0, or just the added weight. Assisted machines: enter how much assistance you used. Less assistance counts as progress.</div>
   </div>
 
   <div class="card">
@@ -724,7 +724,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.18.0";
+const APP_VERSION = "1.19.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -1234,6 +1234,22 @@ let liftDate = localDate(new Date());
 let progName = null;
 const e1rm = (w,r) => w<=0 ? 0 : r<=1 ? w : w*(1+Math.min(r,12)/30);
 const fmtW = w => w<=0 ? "BW" : (Math.round(w*10)/10).toString();
+// Assisted machines (assisted pull-ups, dips): the number you enter is the assistance. Less help = more of your
+// own body weight moved, so the app scores these on (body weight − assistance) and shows the assistance back to you.
+const isAssisted = n => /\bassist(ed|ance)?\b/i.test(String(n||""));
+function bwLoad(){ const b=Number(profile && profile.bw); return b>0 ? b : (U()==="kg" ? 80 : 180); }
+const effW = e => (!isAssisted(e.name) || e.eff) ? e.w : Math.max(0, bwLoad()-(e.w||0));
+const asstOf = e => e.assist!=null ? e.assist : e.w;
+function fmtSet(e){ if(!isAssisted(e.name)) return fmtW(e.w); const a=asstOf(e); return a>0 ? `${fmtW(a)} assist` : "no assist"; }
+function wDisp(name, w){ if(!isAssisted(name)) return `${w} ${U()}`; const a=Math.max(0, roundW(bwLoad()-w)); return a>0 ? `${a} ${U()} assist` : "no assist (bodyweight)"; }
+function assistProg(top, feel){
+  const a=asstOf(top), r=top.r, step = U()==="kg" ? 2.5 : 5, B=bwLoad();
+  const mk=(na, reps, note)=>({w:B-na, reps, note});
+  if(feel==="much") return mk(a, r, `Last time felt like too much: match ${a} ${U()} assist × ${r}.`);
+  if(feel==="easy" && a>0){ const na=Math.max(0,a-step); return mk(na, r, na>0 ? `Felt too easy: drop to ${na} ${U()} of assistance for ${r}.` : `Felt too easy: try it with no assistance.`); }
+  if(r>=12 && a>0){ const na=Math.max(0,a-step), nr=Math.max(6,r-4); return mk(na, nr, na>0 ? `You hit ${r}. Drop to ${na} ${U()} of assistance and work back up from ${nr}.` : `You hit ${r} with just ${a} ${U()} of help. Try it with no assistance for ${nr}.`); }
+  return mk(a, Math.min(30,r+1), `Beat last time: ${a>0?a+" "+U()+" assist":"no assist"} × ${r} → aim for ${r+1}. Less assistance = stronger.`);
+}
 
 function canonName(raw){
   const t=raw.trim().replace(/\s+/g," ").slice(0,60); if(!t) return "";
@@ -1249,7 +1265,7 @@ function allNames(){
 function sessions(name){
   const k=name.toLowerCase();
   return Object.keys(lifts).sort().map(d=>{
-    const sets=liftEntries(d).filter(e=>e.name.toLowerCase()===k);
+    const sets=liftEntries(d).filter(e=>e.name.toLowerCase()===k).map(e=>isAssisted(e.name) ? {...e, w:effW(e), assist:e.w, eff:true} : e);
     if(!sets.length) return null;
     const best=Math.max(...sets.map(e=>e1rm(e.w,e.r)));
     const top=sets.reduce((a,e)=> (e.w>a.w || (e.w===a.w && e.r>a.r)) ? e : a, sets[0]);
@@ -1257,7 +1273,7 @@ function sessions(name){
     return {date:d, sets, best, top, maxReps};
   }).filter(Boolean);
 }
-function setsText(sets){ return sets.map(e=>`${fmtW(e.w)}×${e.r}${e.s>1?" ×"+e.s:""}`).join(", "); }
+function setsText(sets){ return sets.map(e=>`${fmtSet(e)}×${e.r}${e.s>1?" ×"+e.s:""}`).join(", "); }
 function splitFor(date){ const did=logs[date]?.did; return (did && did!=="Rest") ? did : nextSplit(date); }
 
 function howTo(name){
@@ -1301,14 +1317,14 @@ function renderLifts(){
     box.innerHTML=[...groups].map(([name,sets])=>{
       const prior=sessions(name).filter(s=>s.date<liftDate);
       const priorBest=prior.length?Math.max(...prior.map(s=>s.best)):0;
-      const prBest=Math.max(...sets.map(e=>e1rm(e.w,e.r)));
-      const vol=sets.reduce((a,e)=>a+e.w*e.r*e.s,0);
+      const prBest=Math.max(...sets.map(e=>e1rm(effW(e),e.r)));
+      const vol=sets.reduce((a,e)=>a+effW(e)*e.r*e.s,0);
       return `<div class="ex"><div class="n"><span>${esc(name)}</span><span class="exr"><small>${vol>0?Math.round(vol).toLocaleString()+" "+U()+" volume":""}</small><button type="button" class="trash" aria-label="Remove ${esc(name)}" onclick="delExercise('${jsq(name)}')">🗑</button></span></div><div class="sets">`+
-        sets.map(e=>{ const isPR = prior.length && e.w>0 && e1rm(e.w,e.r)>priorBest && e1rm(e.w,e.r)===prBest;
-          return `<span class="set ${isPR?"pr":""} ${editId===e.id?"editing":""}" onclick="editSet('${jsq(e.id)}')">${fmtW(e.w)} × ${e.r}${e.s>1?` <span class="muted">×${e.s}</span>`:""}${isPR?` <span class="pr-t">PR</span>`:""}<button aria-label="Remove set" onclick="event.stopPropagation();delSet('${jsq(e.id)}')">×</button></span>`; }).join("")+
+        sets.map(e=>{ const ew=effW(e), isPR = prior.length && ew>0 && e1rm(ew,e.r)>priorBest && e1rm(ew,e.r)===prBest;
+          return `<span class="set ${isPR?"pr":""} ${editId===e.id?"editing":""}" onclick="editSet('${jsq(e.id)}')">${fmtSet(e)} × ${e.r}${e.s>1?` <span class="muted">×${e.s}</span>`:""}${isPR?` <span class="pr-t">PR</span>`:""}<button aria-label="Remove set" onclick="event.stopPropagation();delSet('${jsq(e.id)}')">×</button></span>`; }).join("")+
         `</div>${(()=>{ const e=sets.find(x=>x.id===editId); if(!e) return "";
           return `<div class="seted"><div class="trio">
-            <div class="mini"><label>Weight (${U()})</label><div class="box"><input id="edW" type="number" inputmode="decimal" min="0" value="${e.w}"></div></div>
+            <div class="mini"><label>${isAssisted(e.name)?"Assist":"Weight"} (${U()})</label><div class="box"><input id="edW" type="number" inputmode="decimal" min="0" value="${e.w}"></div></div>
             <div class="mini"><label>Reps</label><div class="box"><input id="edR" type="number" inputmode="numeric" min="1" value="${e.r}"></div></div>
             <div class="mini"><label>Sets</label><div class="box"><input id="edS" type="number" inputmode="numeric" min="1" max="10" value="${e.s||1}"></div></div></div>
             <input type="text" id="edN" value="${esc(e.name)}" maxlength="60" aria-label="Exercise name" style="margin-top:8px">
@@ -1334,29 +1350,29 @@ function renderProgress(){
   sel.disabled=false;
   if(!progName || !names.some(n=>n===progName)) progName=names[0];
   sel.innerHTML=names.map(n=>`<option ${n===progName?"selected":""}>${esc(n)}</option>`).join("");
-  const ss=sessions(progName);
-  const bw = ss.every(s=>s.best===0);
-  const metric = s => bw ? s.maxReps : s.best;
-  const unit = bw ? "reps" : U();
-  const bestS = ss.reduce((a,s)=>metric(s)>metric(a)?s:a, ss[0]);
+  const ss=sessions(progName), asst=isAssisted(progName);
+  const bw = !asst && ss.every(s=>s.best===0);
+  const metric = s => asst ? Math.min(...s.sets.map(e=>asstOf(e))) : bw ? s.maxReps : s.best;
+  const unit = asst ? U()+" assist" : bw ? "reps" : U();
+  const bestS = ss.reduce((a,s)=> (asst ? metric(s)<metric(a) : metric(s)>metric(a)) ? s : a, ss[0]);
   const heavy = ss.reduce((a,s)=> (s.top.w>a.top.w || (s.top.w===a.top.w && s.top.r>a.top.r)) ? s : a, ss[0]);
   const cutoff=shift(localDate(new Date()),-56);
   const recent=ss.filter(s=>s.date>=cutoff);
   let delta="";
   if(recent.length>=2){
-    const d=Math.round(metric(recent[recent.length-1])-metric(recent[0]));
-    delta=`<div class="delta">${d>0?`<span class="pos">▲ ${d} ${unit}</span>`:d<0?`<span class="neg">▼ ${-d} ${unit}</span>`:"Holding steady"} ${bw?"top set reps":"est. 1RM"} since ${nice(recent[0].date)}${d<=0&&isCut()?". On a cut, holding steady is a win.":"."}</div>`;
+    const d=Math.round((metric(recent[recent.length-1])-metric(recent[0]))*(asst?-1:1));
+    delta = asst ? `<div class="delta">${d>0?`<span class="pos">▼ ${d} ${U()} less assistance</span>`:d<0?`<span class="neg">${-d} ${U()} more assistance</span>`:"Holding steady"} since ${nice(recent[0].date)}.</div>` : `<div class="delta">${d>0?`<span class="pos">▲ ${d} ${unit}</span>`:d<0?`<span class="neg">▼ ${-d} ${unit}</span>`:"Holding steady"} ${bw?"top set reps":"est. 1RM"} since ${nice(recent[0].date)}${d<=0&&isCut()?". On a cut, holding steady is a win.":"."}</div>`;
   }
   body.innerHTML=`
     <div class="stats" style="margin:12px 0 0">
-      <div class="stat"><div class="k">${bw?"Best reps":"Best e1RM"}</div><div class="v">${Math.round(metric(bestS))}<small> ${unit}</small></div></div>
-      <div class="stat"><div class="k">Top set</div><div class="v" style="font-size:22px">${fmtW(heavy.top.w)}×${heavy.top.r}</div></div>
+      <div class="stat"><div class="k">${asst?"Least assist":bw?"Best reps":"Best e1RM"}</div><div class="v">${Math.round(metric(bestS))}<small> ${unit}</small></div></div>
+      <div class="stat"><div class="k">Top set</div><div class="v" style="font-size:22px">${fmtSet(heavy.top)}×${heavy.top.r}</div></div>
       <div class="stat"><div class="k">Sessions</div><div class="v">${ss.length}</div></div>
     </div>
     ${delta}
     ${chartSVG(ss.slice(-20), metric, unit)}
     <ul class="sess">${ss.slice(-6).reverse().map(s=>`<li onclick="openLiftDay('${s.date}')" style="cursor:pointer"><span>${nice(s.date)} ›</span><span>${esc(setsText(s.sets))}</span></li>`).join("")}</ul>
-    ${bw?"":`<div class="hint">e1RM = estimated 1-rep max from your best set (Epley formula). It lets you compare a set of 5 with a set of 8.</div>`}`;
+    ${asst?`<div class="hint">Assisted exercise: tracked by how much help you need. Lower is better. Strength scores use your body weight minus the assistance${Number(profile&&profile.bw)>0?"":" (add your body weight for accuracy)"}.</div>`:bw?"":`<div class="hint">e1RM = estimated 1-rep max from your best set (Epley formula). It lets you compare a set of 5 with a set of 8.</div>`}`;
 }
 
 function chartSVG(ss, metric, unit){
@@ -1398,7 +1414,7 @@ const EX = {
   "Pec Deck":{eq:["machine"],alts:["Cable Fly","DB Fly","Band Fly"]},
   "DB Fly":{eq:["dumbbell","bench"],alts:["Cable Fly","Pec Deck","Band Fly"]},
   "Band Fly":{eq:["bands"],alts:["DB Fly","Push-up"]},
-  "Dips":{eq:["bar"],alts:["Bench Dip","Close-Grip Push-up","Tricep Pushdown"]},
+  "Dips":{eq:["bar"],alts:["Bench Dip","Close-Grip Push-up","Tricep Pushdown","Assisted Dip Machine"]},
   "Bench Dip":{eq:["bench"],alts:["Dips","Close-Grip Push-up"]},
   "Close-Grip Push-up":{eq:[],alts:["Bench Dip","Close-Grip Bench Press"]},
   "Barbell Curl":{eq:["barbell"],alts:["DB Curl","Cable Curl","Band Curl"]},
@@ -1510,6 +1526,7 @@ Object.assign(EX, {
   "Bodyweight Lunge":{eq:[],alts:["DB Reverse Lunge","DB Walking Lunge"]},
   "Bodyweight Step-up":{eq:["bench"],alts:["DB Step-up","Bodyweight Lunge"]},
   "Single-Leg Glute Bridge":{eq:[],alts:["Glute Bridge","DB Single-Leg RDL"]},
+  "Assisted Dip Machine":{eq:["machine"],alts:["Bench Dip","Dips","Close-Grip Push-up"]},
   "Adductor Machine":{eq:["machine"],alts:["Cable Hip Adduction","Copenhagen Plank"]},
   "Cable Hip Adduction":{eq:["cable"],alts:["Adductor Machine","Copenhagen Plank"]},
   "Copenhagen Plank":{eq:["bench"],alts:["Adductor Machine","Cable Hip Adduction"]},
@@ -1714,17 +1731,18 @@ function buildPlan(date, split, call){
     const rx=rxFor(call, idx, hs, (p.mine||p.routine) ? name : null), st=recentStats(name, date);
     let w=null, w2=null, txt, bw=false;
     let prog = p.mine && call!=="comp" && st && name===orig ? progression(st.last.top, fb && fb.feel) : null;
-    if(prog && dl){ const t=st.last.top; prog={w:t.w, reps:t.r, note: t.w>0 ? `Deload: same ${fmtW(t.w)} ${U()}, fewer sets. Leave 3+ reps in the tank.` : "Deload: fewer sets, leave 3+ reps in the tank."}; }
+    if(prog && isAssisted(name)) prog=assistProg(st.last.top, fb && fb.feel);
+    if(prog && dl){ const t=st.last.top; prog={w:t.w, reps:t.r, note: t.w>0 ? `Deload: same ${wDisp(name,t.w)}, fewer sets. Leave 3+ reps in the tank.` : "Deload: fewer sets, leave 3+ reps in the tank."}; }
     if(prog){
       w=prog.w; rx.reps=prog.reps;
-      txt = prog.w>0 ? `${rx.sets} × <b>${prog.reps}</b> @ <b>${prog.w} ${U()}</b>` : `${rx.sets} × <b>${prog.reps}</b> @ bodyweight`;
+      txt = prog.w>0 ? `${rx.sets} × <b>${prog.reps}</b> @ <b>${wDisp(name,prog.w)}</b>` : `${rx.sets} × <b>${prog.reps}</b> @ bodyweight`;
       txt += `<div class="ls" style="color:var(--hyper)">${prog.note}</div>`;
       if(prog.w<=0) bw=true;
     } else if(st && st.e1>0){
       w=wFor(st.e1, rx.reps, rx.rir);
       if(fb && call==="comp" && p.mine){ if(fb.feel==="easy") w=roundW(w*1.025); if(fb.feel==="much") w=roundW(w*0.95); }
-      if(rx.kind==="top"){ w2=roundW(w*0.88); txt=`Top set 1×5 @ <b>${w} ${U()}</b>, then ${rx.back}×6–8 @ <b>${w2} ${U()}</b>`; }
-      else txt=`${rx.label} @ <b>${w} ${U()}</b>`;
+      if(rx.kind==="top"){ w2=roundW(w*0.88); txt=`Top set 1×5 @ <b>${wDisp(name,w)}</b>, then ${rx.back}×6–8 @ <b>${wDisp(name,w2)}</b>`; }
+      else txt=`${rx.label} @ <b>${wDisp(name,w)}</b>`;
     } else if(st && st.e1===0){
       bw=true; const r=Math.max(3, st.maxReps-rx.rir);
       txt=`${rx.kind==="top"?rx.back+1:rx.sets} × <b>${r}</b> @ bodyweight (add weight if that's easy)`;
@@ -1888,7 +1906,7 @@ function saveWorkout(){
 }
 
 /* ================= wins (positive feedback) ================= */
-const volOf = sets => sets.reduce((a,e)=>a+e.w*e.r*(e.s||1),0);
+const volOf = sets => sets.reduce((a,e)=>a+effW(e)*e.r*(e.s||1),0);
 // compare each exercise on `date` with the previous time you did it
 function winsFor(date){
   const out=[], names=[...new Set(liftEntries(date).map(e=>e.name))];
@@ -1897,9 +1915,9 @@ function winsFor(date){
     const all=sessions(name), cur=all.find(x=>x.date===date), prior=all.filter(x=>x.date<date);
     if(!cur || !prior.length) return;
     const prev=prior[prior.length-1], best=Math.max(...prior.map(x=>x.best));
-    if(cur.best>0 && cur.best>best+0.01){ prs++; beat++; out.push(`<b>New PR</b> on ${esc(name)}: ${fmtW(cur.top.w)}×${cur.top.r}`); return; }
-    if(cur.top.w>prev.top.w && prev.top.w>0){ beat++; out.push(`<b>+${fmtW(Math.round((cur.top.w-prev.top.w)*10)/10)} ${U()}</b> on ${esc(name)} vs last time`); return; }
-    if(cur.top.w===prev.top.w && cur.top.r>prev.top.r){ beat++; const d=cur.top.r-prev.top.r; out.push(`<b>+${d} rep${d===1?"":"s"}</b> on ${esc(name)} at ${fmtW(cur.top.w)}`); return; }
+    if(cur.best>0 && cur.best>best+0.01){ prs++; beat++; out.push(`<b>New PR</b> on ${esc(name)}: ${fmtSet(cur.top)}×${cur.top.r}`); return; }
+    if(cur.top.w>prev.top.w && prev.top.w>0){ beat++; const dw=fmtW(Math.round((cur.top.w-prev.top.w)*10)/10); out.push(isAssisted(name) ? `<b>${dw} ${U()} less assistance</b> on ${esc(name)} vs last time` : `<b>+${dw} ${U()}</b> on ${esc(name)} vs last time`); return; }
+    if(cur.top.w===prev.top.w && cur.top.r>prev.top.r){ beat++; const d=cur.top.r-prev.top.r; out.push(`<b>+${d} rep${d===1?"":"s"}</b> on ${esc(name)} at ${fmtSet(cur.top)}`); return; }
     const cv=volOf(cur.sets), pv=volOf(prev.sets);
     if(pv>0 && cv>pv*1.02){ beat++; out.push(`<b>More volume</b> on ${esc(name)} (+${Math.round((cv/pv-1)*100)}%)`); }
   });
@@ -2474,12 +2492,13 @@ function renderHistProgress(){
   sel.innerHTML=`<optgroup label="Exercises">${exs.map(n=>`<option value="ex:${esc(n)}" ${hpSel==="ex:"+n?"selected":""}>${esc(n)}</option>`).join("")}</optgroup>`+
     (days.length?`<optgroup label="Whole split day">${days.map(n=>`<option value="day:${esc(n)}" ${hpSel==="day:"+n?"selected":""}>${esc(n)} (all exercises)</option>`).join("")}</optgroup>`:"");
   segButtons(modeEl, [["heavy","Heavy days"],["hyper","Hypertrophy"],["all","All"]], hpMode, v=>{ hpMode=v; renderHistProgress(); });
-  let rows, metricLbl, unit;
+  let rows, metricLbl, unit, lowerBetter=false;
   if(hpSel.startsWith("ex:")){
     const name=hpSel.slice(3);
     rows=sessions(name).map(x=>({date:x.date, type:dayType(x.date,x.sets), best:x.best, top:x.top, vol:volOf(x.sets), setLoad:Math.max(...x.sets.map(e=>e.w*e.r)), txt:setsText(x.sets), maxReps:x.maxReps}));
     const bw=rows.every(r=>r.best===0);
-    if(bw){ metricLbl="Best reps"; unit="reps"; rows.forEach(r=>r.m=r.maxReps); }
+    if(isAssisted(name)){ metricLbl="Assistance"; unit=U(); lowerBetter=true; rows.forEach(r=>r.m=Math.min(...sessions(name).find(x=>x.date===r.date).sets.map(asstOf))); }
+    else if(bw){ metricLbl="Best reps"; unit="reps"; rows.forEach(r=>r.m=r.maxReps); }
     else if(hpMode==="hyper"){ metricLbl="Best set"; unit=U(); rows.forEach(r=>r.m=r.setLoad); }
     else { metricLbl="Est. 1-rep max"; unit=U(); rows.forEach(r=>r.m=r.best); }
   } else {
@@ -2489,11 +2508,11 @@ function renderHistProgress(){
   }
   const f = hpMode==="all" ? rows : rows.filter(r=>r.type===hpMode);
   if(!f.length){ body.innerHTML=`<div class="hint">No ${hpMode==="heavy"?"heavy":"hypertrophy"} days logged for this yet.</div>`; return; }
-  const first=f[0], last=f[f.length-1], best=f.reduce((a,r)=>r.m>a.m?r:a,f[0]);
+  const first=f[0], last=f[f.length-1], best=f.reduce((a,r)=>(lowerBetter ? r.m<a.m : r.m>a.m)?r:a,f[0]);
   const fmtM = v => unit==="reps" ? Math.round(v) : Math.round(v).toLocaleString();
   let line="";
-  if(f.length>=2){ const d=last.m-first.m;
-    line = d>0 ? `<p class="goodnote">▲ ${fmtM(d)} ${unit} ${metricLbl.toLowerCase()} since ${nice(first.date)}. Keep it rolling 💪</p>`
+  if(f.length>=2){ const d=(last.m-first.m)*(lowerBetter?-1:1);
+    line = lowerBetter && d>0 ? `<p class="goodnote">▼ ${fmtM(d)} ${unit} less assistance since ${nice(first.date)}. Keep it rolling 💪</p>` : d>0 ? `<p class="goodnote">▲ ${fmtM(d)} ${unit} ${metricLbl.toLowerCase()} since ${nice(first.date)}. Keep it rolling 💪</p>`
       : `<div class="delta">Holding steady since ${nice(first.date)}${isCut()?". On a cut, that's a win.":"."}</div>`; }
   body.innerHTML=`<div class="hpstats">
       <div class="stat"><div class="k">Latest ${metricLbl.toLowerCase()}</div><div class="v" style="font-size:22px">${fmtM(last.m)}<small> ${unit}</small></div></div>
@@ -2502,7 +2521,7 @@ function renderHistProgress(){
     ${line}
     ${chartSVG(f.slice(-20), r=>r.m, unit)}
     <ul class="sess">${f.slice(-8).reverse().map(r=>`<li onclick="showView('lifts');openLiftDay('${r.date}')" style="cursor:pointer"><span><span class="tbadge ${r.type}">${r.type==="heavy"?"Heavy":"Hyper"}</span>${nice(r.date)} ›</span><span>${esc(r.txt)}</span></li>`).join("")}</ul>
-    <div class="hint">${hpSel.startsWith("ex:") ? (metricLbl==="Best set" ? "Hypertrophy progress = your best set's weight × reps, so 155×13 beats 145×12 even on a shorter day." : metricLbl==="Best reps" ? "Bodyweight exercise: tracked by best reps." : "Estimated 1-rep max from your best set, so a 5-rep day and a 10-rep day compare fairly.") : "Session volume = weight × reps × sets across the whole day."} Heavy vs hypertrophy comes from that day's call (or from your reps if you didn't check in).</div>`;
+    <div class="hint">${hpSel.startsWith("ex:") ? (metricLbl==="Best set" ? "Hypertrophy progress = your best set's weight × reps, so 155×13 beats 145×12 even on a shorter day." : metricLbl==="Best reps" ? "Bodyweight exercise: tracked by best reps." : metricLbl==="Assistance" ? "Assisted exercise: tracked by the least assistance you used. Lower is better." : "Estimated 1-rep max from your best set, so a 5-rep day and a 10-rep day compare fairly.") : "Session volume = weight × reps × sets across the whole day."} Heavy vs hypertrophy comes from that day's call (or from your reps if you didn't check in).</div>`;
 }
 document.getElementById("hpSel").addEventListener("change", e=>{ hpSel=e.target.value; renderHistProgress(); });
 
@@ -2720,12 +2739,12 @@ document.getElementById("bwIn").addEventListener("input",e=>{ const v=parseFloat
 document.getElementById("fbw").addEventListener("input",e=>{ const v=e.target.value.trim(); if(profile){ profile.bw = v==="" ? "" : Number(v); } renderFuel(lastAssess); savePrefs(); });
 
 /* ================= LIFT entry ================= */
-function pickEx(n){ const i=document.getElementById("exName"); i.value=n; prefill(n); renderLastTime(); }
+function pickEx(n){ const i=document.getElementById("exName"); i.value=n; prefill(n); setWLabel(); renderLastTime(); }
 function prefill(name){
   const c=canonName(name); if(!c) return;
   const todays=liftEntries(liftDate).filter(e=>e.name.toLowerCase()===c.toLowerCase());
   const src = todays.length ? todays[todays.length-1] : (()=>{ const p=sessions(c).filter(s=>s.date<liftDate); return p.length? p[p.length-1].top : null; })();
-  if(src){ document.getElementById("wIn").value=src.w; document.getElementById("rIn").value=src.r; }
+  if(src){ document.getElementById("wIn").value=asstOf(src); document.getElementById("rIn").value=src.r; }
 }
 function bump(id,d){
   const el=document.getElementById(id); let v=parseFloat(el.value)||0;
@@ -2751,13 +2770,14 @@ function addSet(){
   const entry={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), name, w:weight, r, s:Math.min(10,Math.max(1,s)), t:Date.now()};
   if(liftDate===localDate(new Date()) && !sessT[liftDate]) startTimer(liftDate, Date.now(), true);
   if(planCtx && planCtx.date===liftDate && !planCtx.planNames.includes(name.toLowerCase())) entry.forPlan=planCtx.slot;
-  const isPR = prior.length && weight>0 && e1rm(weight,r)>priorBest;
+  const asst=isAssisted(name), wE = asst ? Math.max(0, bwLoad()-weight) : weight;
+  const isPR = prior.length && wE>0 && e1rm(wE,r)>priorBest;
   const usualMax = prior.length ? Math.max(...prior.flatMap(x=>x.sets.map(e=>e.w))) : 0;
-  const looksOff = usualMax>0 && weight > usualMax*1.8;
-  let msg = isPR ? `New PR on ${name}! 🔥` : `Added ${name} ${fmtW(weight)}×${r}`;
+  const looksOff = !asst && usualMax>0 && weight > usualMax*1.8;
+  let msg = isPR ? `New PR on ${name}! 🔥` : `Added ${name} ${fmtSet({name, w:weight})}×${r}`;
   if(!isPR && prior.length){ const pt=prior[prior.length-1].top;
-    if(weight>pt.w && pt.w>0) msg=`Up ${fmtW(Math.round((weight-pt.w)*10)/10)} ${U()} from last time on ${name} 💪`;
-    else if(weight===pt.w && r>pt.r) msg=`${r-pt.r} more rep${r-pt.r===1?"":"s"} than last time on ${name} 👊`; }
+    if(wE>pt.w && pt.w>0) msg = asst ? `${fmtW(Math.round((wE-pt.w)*10)/10)} ${U()} less assistance than last time on ${name} 💪` : `Up ${fmtW(Math.round((weight-pt.w)*10)/10)} ${U()} from last time on ${name} 💪`;
+    else if(wE===pt.w && r>pt.r) msg=`${r-pt.r} more rep${r-pt.r===1?"":"s"} than last time on ${name} 👊`; }
   writeLifts(liftDate, [...liftEntries(liftDate), entry], looksOff ? null : msg);
   if(prefs.autoRest!==false && liftDate===localDate(new Date())) startRest(restFor(name));
   if(looksOff) toastAction(`${fmtW(weight)} ${U()} is way above your usual ${fmtW(usualMax)}. Typo?`, "Fix", ()=>editSet(entry.id));
@@ -2777,7 +2797,7 @@ function delSet(id){
   const list=liftEntries(liftDate), i=list.findIndex(e=>e.id===id); if(i<0) return;
   const removed=list[i], date=liftDate;
   editId=null; writeLifts(date, list.filter(e=>e.id!==id));
-  toastAction(`Removed ${removed.name} ${fmtW(removed.w)}×${removed.r}`, "Undo", ()=>{
+  toastAction(`Removed ${removed.name} ${fmtSet(removed)}×${removed.r}`, "Undo", ()=>{
     const cur=liftEntries(date); if(cur.some(e=>e.id===removed.id)) return;
     const back=[...cur]; back.splice(Math.min(i,back.length),0,removed);
     writeLifts(date, back, "Set restored");
@@ -2803,8 +2823,9 @@ function delDay(){
 }
 function openLiftDay(d){ liftDate=d; editId=null; planCtx=null; renderLifts(); window.scrollTo({top:document.getElementById("dayLifts").offsetTop-120, behavior:"smooth"}); }
 document.getElementById("liftDate").addEventListener("change",e=>{ if(e.target.value){ liftDate=e.target.value; planCtx=null; editId=null; renderLifts(); } });
-document.getElementById("exName").addEventListener("input",()=>renderLastTime());
-document.getElementById("exName").addEventListener("change",e=>{ prefill(e.target.value); renderLastTime(); });
+function setWLabel(){ const a=isAssisted(document.getElementById("exName").value); document.getElementById("wLbl").innerHTML = `${a?"Assist":"Weight"} (<span class="U">${U()}</span>)`; }
+document.getElementById("exName").addEventListener("input",()=>{ setWLabel(); renderLastTime(); });
+document.getElementById("exName").addEventListener("change",e=>{ prefill(e.target.value); setWLabel(); renderLastTime(); });
 document.getElementById("progSel").addEventListener("change",e=>{ progName=e.target.value; renderProgress(); });
 
 /* ================= SETUP & SETTINGS ================= */
