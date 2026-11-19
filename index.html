@@ -336,7 +336,7 @@
   .wd .h{position:absolute;top:-6px;right:-3px;font-size:12px}
   .wd.today{border-color:var(--accent)}
   .wd.off{background:#1b2230;border-color:#33507a}.wd.off .t{color:var(--rest)}
-  .wd.sug .t{color:var(--muted)}.wd.done .t{color:var(--ok)}
+  .wd.sug .t{color:var(--muted)}.wd.ci .t{color:var(--rest)}.wd.done .t{color:var(--ok)}
   .wd.sel{box-shadow:0 0 0 2px var(--text)}
   .wd.pin .t{text-decoration:underline;text-decoration-style:dotted}
   .wkdet{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
@@ -758,7 +758,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.24.0";
+const APP_VERSION = "1.25.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -2551,23 +2551,27 @@ function weekPlan(start){
   const done0=trainedOn(start);
   if(done0 && done0!=="Rest"){ st[0].train=true; st[0].done=done0; }
   else if(done0==="Rest"){ st[0].train=false; st[0].rested=true; }
+  // No rest planned for today? Your check-in decides: a rest call makes today the rest day and the split shifts a day.
+  else if(!st[0].off && logs[start] && logs[start].call==="rest" && typeof logs[start].score==="number"){ st[0].train=false; st[0].ciRest=true; st[0].score=logs[start].score; }
   const prior=trainStreak(start);
   const runs=()=>{ const out=[]; let r=null; st.forEach((x,i)=>{ if(x.train){ if(!r){ r={a:i, b:i}; out.push(r); } else r.b=i; } else r=null; });
     out.forEach(r=>r.len=(r.b-r.a+1)+(r.a===0?prior:0)); return out; };
   const nTrain=()=>st.filter(x=>x.train).length;
-  for(let guard=0; guard<7; guard++){
-    const R=runs(), over5=R.filter(r=>r.len>5).sort((x,y)=>y.len-x.len);
-    if(!R.length || (nTrain()<=target && !over5.length)) break;
-    // too many days in a row comes first; otherwise thin out the longest stretch (later in the week on a tie)
-    const longest = over5[0] || R.sort((x,y)=>(y.b-y.a)-(x.b-x.a) || y.a-x.a)[0];
-    // break the longest run in its middle (never on a day you've already trained)
+  // 1) If you set fewer days a week, spread suggested rests through the longest stretches.
+  for(let guard=0; guard<7 && nTrain()>target; guard++){
+    const R=runs(); if(!R.length) break;
+    const longest=R.sort((x,y)=>(y.b-y.a)-(x.b-x.a) || y.a-x.a)[0];
     const cand=[]; for(let i=longest.a;i<=longest.b;i++) if(!st[i].done) cand.push(i);
     if(!cand.length) break;
-    const pre=(over5.length && longest.a===0)?prior:0, mid=over5.length ? (longest.len-1)/2 - pre + longest.a : (longest.a+longest.b)/2;
-    const dist=i=>Math.abs(i-mid)+(i===0?2:0);          // prefer not to tell you to rest today
-    let pick=cand.sort((x,y)=>dist(x)-dist(y))[0];
-    if(longest.len>5 && longest.a===0){ const lim=Math.max(0, 5-prior); if(pick>lim){ const c2=cand.filter(i=>i<=lim); if(c2.length) pick=c2[c2.length-1]; } }
-    st[pick].train=false; st[pick].sug=true;
+    const mid=(longest.a+longest.b)/2, dist=i=>Math.abs(i-mid)+(i===0?2:0);   // prefer not to tell you to rest today
+    const pick=cand.sort((x,y)=>dist(x)-dist(y))[0]; st[pick].train=false; st[pick].sug=true;
+  }
+  // 2) Otherwise rest days come from your morning check-in. The one fixed rule: after 6 days in a row, a rest is due.
+  for(let guard=0; guard<7; guard++){
+    const r=runs().find(r=>r.len>6); if(!r) break;
+    const at=Math.min(r.b, r.a + 6 - (r.a===0?prior:0));
+    let k=at; while(k>=r.a && st[k].done) k--; if(k<r.a) break;
+    st[k].train=false; st[k].due=true;
   }
   let nxt = st[0].done && S.includes(st[0].done) ? S[(S.indexOf(st[0].done)+1)%S.length] : nextSplit(start);
   // Days you picked keep your pick; the rest of the rotation fills in around them so no split day gets lost.
@@ -2588,6 +2592,8 @@ function dayReasons(W, idx){
   const x=W.days[idx], S=SPLIT(), out=[], dn=d=>nice(d).split(",")[0];
   if(x.off){ out.push(["You marked this day off.",""]); return out; }
   if(x.rested){ out.push(["You logged a rest day.",""]); return out; }
+  if(x.ciRest){ out.push([`Your check-in score today (${x.score}) is below your rest line, so today is your rest day. Your split picks up tomorrow.`,""]); out.push(["Recovering today means a better session tomorrow. Train anyway is still on Today if you change your mind.",""]); return out; }
+  if(x.due){ out.push(["This would be your 7th day in a row. The app always calls a rest after 6 straight days, sooner if your check-in says so.",""]); return out; }
   if(x.sug){ const W2=W.target<7; out.push([W2 ? `You set ${W.target} training days a week, and this spreads your rest out.` : `This keeps you from going 6+ days in a row. Recovery is when you actually build muscle.`,""]); out.push(["It's only a suggestion. If you feel good, train, and your readiness still makes the call.",""]); return out; }
   if(x.done){ out.push([`Done: you trained ${x.split} today.`,"pos"]); return out; }
   const prevX = idx>0 ? W.days[idx-1] : null;
@@ -2614,7 +2620,7 @@ function pinDay(d, sp){
   toast(sp ? `${nice(d).split(",")[0]}: ${sp}. Week re-planned around it` : `${nice(d).split(",")[0]} is back on auto`);
   renderCall();
 }
-const restPlannedOn = d => { const W=weekPlan(localDate(new Date())); const x=W && W.days.find(y=>y.d===d); return !!(x && !x.train); };
+const restPlannedOn = d => { const W=weekPlan(localDate(new Date())); const x=W && W.days.find(y=>y.d===d); return !!(x && (x.off||x.sug||x.due)); };
 const ABBR={chest:"Chest",biceps:"Bi",triceps:"Tri",back:"Back",shoulders:"Delts",shoulder:"Delts",quads:"Quads",hamstrings:"Hams",glutes:"Glutes",upper:"Upper",lower:"Lower",push:"Push",pull:"Pull",legs:"Legs",arms:"Arms",full:"Full",body:"Body"};
 function shortSplit(n){ const parts=String(n).split(/\s*[\/·]\s*/); return parts.map(p=>{ const w=p.trim().split(/\s+/); return w.map(x=>ABBR[x.toLowerCase()]||x.slice(0,5)).join(" "); }).join("/\u200b"); }
 function renderWeekPlan(){
@@ -2622,14 +2628,17 @@ function renderWeekPlan(){
   if(!profile){ el.innerHTML=""; return; }
   const W=weekPlan(); if(!W){ el.innerHTML=""; return; }
   const dn=d=>nice(d).split(",")[0];
-  const cells=W.days.map((x,i)=>{ const lbl = x.off ? "Off" : x.rested ? "Rested" : x.sug ? "Rest" : shortSplit(x.split);
-    const cls = x.off ? "off" : (x.sug||x.rested) ? "sug" : x.done ? "done" : "";
+  const cells=W.days.map((x,i)=>{ const lbl = x.off ? "Off" : x.rested ? "Rested" : x.ciRest ? "Rest" : x.due ? "Rest due" : x.sug ? "Rest?" : shortSplit(x.split);
+    const cls = x.off ? "off" : x.ciRest ? "off ci" : (x.sug||x.rested||x.due) ? "sug" : x.done ? "done" : "";
     return `<button type="button" class="wd ${cls} ${i===0?"today":""} ${wkSel===x.d?"sel":""} ${x.pinned?"pin":""}" onclick="selectDay('${x.d}')" aria-label="${dn(x.d)}: ${esc(x.off?"day off":x.sug?"suggested rest":x.split||"")}">
       <span class="w">${i===0?"Today":dn(x.d).slice(0,3)}</span><span class="n">${Number(x.d.slice(8))}</span><span class="t">${esc(lbl)}</span>${x.heavyOk&&!x.done?'<span class="h">💪</span>':""}</button>`; }).join("");
   const notes=[];
   const offs=W.days.filter(x=>x.off).map(x=>dn(x.d)); if(offs.length) notes.push(`<b>${offs.join(", ")}</b> off. Your split days are lined up around ${offs.length===1?"it":"them"}.`);
   const sug=W.days.filter(x=>x.sug).map(x=>dn(x.d));
-  if(sug.length) notes.push(`Suggested rest: <b>${sug.join(", ")}</b>${W.target<7?`, to match your ${W.target} days a week`:", so you don't go 6+ days in a row"}. Train anyway if you feel good. Your readiness still makes the call each morning.`);
+  if(sug.length) notes.push(`Suggested rest: <b>${sug.join(", ")}</b>, to match your ${W.target} days a week. Train anyway if you feel good.`);
+  const ci=W.days.find(x=>x.ciRest); if(ci) notes.push(`Your check-in score (${ci.score}) called for <b>rest today</b>, so your split moves back a day. If you feel better later, Train anyway still works.`);
+  const due=W.days.find(x=>x.due); if(due) notes.push(`<b>${dn(due.d)}</b> would be 7 days in a row, so a rest is due by then.`);
+  if(!W.days.some(x=>x.off||x.sug||x.ciRest||x.rested)) notes.push(`No rest days planned. Your morning check-in picks them: if your score calls for rest, that day becomes your rest day and the week shifts.`);
   const h=W.days.find(x=>x.heavyOk && !x.done); if(h) notes.push(`💪 <b>${h.d===W.days[0].d?"Today":dn(h.d)}</b> is a good day to go heavy if you're ready, since you rest the day after.`);
   if(W.missing.length) notes.push(`<b>${W.missing.join(", ")}</b> won't fit in the next 7 days. ${W.missing.length===1?"It picks":"They pick"} up right after.`);
   el.innerHTML=`<div class="card"><label class="l">Your week</label><div class="wkstrip">${cells}</div>
