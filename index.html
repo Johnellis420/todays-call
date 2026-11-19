@@ -670,6 +670,11 @@
     <div id="deloadSet"></div>
   </div>
   <div class="card">
+    <label class="l">Redo setup</label>
+    <p class="muted" style="font-size:13.5px;margin:0 0 10px">Go through the setup questions again: goal, schedule, equipment, split and sleep. Your answers start filled in. Your check-ins, lifts, badges and history are all kept.</p>
+    <button class="btn ghost" style="height:46px;margin:0" onclick="redoSetup()">Start setup again</button>
+  </div>
+  <div class="card">
     <label class="l">How it works</label>
     <p class="muted" style="font-size:13.5px;margin:0 0 10px">A 1-minute tour of check-ins, plans, logging, feedback, the timer and badges.</p>
     <button class="btn ghost" style="height:46px;margin:0" onclick="openGuide(false)">Show the guide</button>
@@ -719,7 +724,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.16.0";
+const APP_VERSION = "1.17.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -2851,10 +2856,32 @@ function renderSleepSettings(){
   }
   document.getElementById("stLearnInfo").innerHTML=t+` Each person needs their own phone (or browser), since data stays on the device.`;
 }
-let suStep=0; const SU_LAST=8;
+let suStep=0, suRedo=null; const SU_LAST=8;
+function redoSetup(){
+  suRedo={bw: profile.bw||""}; suStep=1;
+  draft={units:profile.units, goal:profile.goal, sex:profile.sex, cycle:JSON.parse(JSON.stringify(profile.cycle||defaultCycle())), split:profile.split.map(d=>({...d})),
+         equip:{...(profile.equip||{})}, sleepNeed:profile.sleepNeed||DEFAULT_NEED, days:profile.days||4, sessMin:profile.sessMin||60, warmIn:profile.warmIn!==false, splitTouched:true};
+  document.getElementById("suBw").value=profile.bw||"";
+  showView("setup"); window.scrollTo(0,0);
+}
+function cancelRedo(){ suRedo=null; suStep=0; draft=null; showView("settings"); toast("No changes made"); }
+function finishRedo(){
+  const split=cleanSplit(draft.split);
+  if(!split.length){ toast("Add at least one training day"); suStep=6; renderSetup(); return; }
+  const typed=document.getElementById("suBw").value, d=draft, orig=suRedo;
+  if(d.units!==profile.units) changeUnits(d.units);            // converts your logged lifts and weigh-ins
+  Object.assign(profile, {goal:d.goal, split, sex:d.sex||"na", cycle:cleanCycle(d.cycle), equip:cleanEquip(d.equip), sleepNeed:d.sleepNeed||DEFAULT_NEED, days:d.days||4, sessMin:d.sessMin||60, warmIn:d.warmIn!==false});
+  if(profile.sex==="male") profile.cycle.on=false;
+  const bw=Number(typed); if(bw>0 && String(typed)!==String(orig.bw)) profile.bw=bw;
+  prefs={...prefs, dur:profile.sessMin}; store(KEYS.prefs,prefs);
+  if(!store(KEYS.profile, profile)) return;
+  suRedo=null; suStep=0; draft=null; applyUnits(); syncFuelInputs(); form=fromLog(form.date); showView("today");
+  toast("Setup updated. All your history is kept"); checkBadges();
+}
 const SU_TITLES=["Welcome","Units","Goal","About you","Schedule","Equipment","Split","Sleep","Last step"];
 function suGo(d){
-  if(d>0 && suStep===SU_LAST){ finishSetup(); return; }
+  if(d>0 && suStep===SU_LAST){ if(suRedo) finishRedo(); else finishSetup(); return; }
+  if(d<0 && suRedo && suStep<=1){ cancelRedo(); return; }
   suStep=Math.max(0, Math.min(SU_LAST, suStep+d));
   if(suStep===6 && !draft.splitTouched){ const top=splitPicks(draft.sex, draft.goal, draft.days)[0]; if(top) useSplit("su", top, true); }
   renderSetup(); window.scrollTo(0,0);
@@ -2866,7 +2893,9 @@ function renderSetup(){
   document.getElementById("wzFill").style.width=Math.round(suStep/SU_LAST*100)+"%";
   document.getElementById("wzStep").textContent = suStep ? `Step ${suStep} of ${SU_LAST} · ${SU_TITLES[suStep]}` : "";
   document.getElementById("wzBack").style.display = suStep ? "" : "none";
-  document.getElementById("wzNext").textContent = suStep===0 ? "Get started" : suStep===SU_LAST ? "I understand. Let's go" : "Next";
+  document.getElementById("wzBack").textContent = suRedo && suStep<=1 ? "Cancel" : "Back";
+  document.getElementById("wzNext").textContent = suStep===0 ? "Get started" : suStep===SU_LAST ? (suRedo ? "Save changes" : "I understand. Let's go") : "Next";
+  document.getElementById("wzStep").textContent = suStep ? `${suRedo?"Redo setup · ":""}Step ${suStep} of ${SU_LAST} · ${SU_TITLES[suStep]}` : "";
   renderSchedule("su", draft, ()=>renderSetup());
   document.getElementById("suNeed").textContent=(draft.sleepNeed||DEFAULT_NEED).toFixed(1);
   segButtons(document.getElementById("suUnits"), [["lb","Pounds (lb)"],["kg","Kilograms (kg)"]], draft.units, v=>{ draft.units=v; renderSetup(); });
