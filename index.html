@@ -302,6 +302,13 @@
   .bwbox input::-webkit-outer-spin-button,.bwbox input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .bwnote{font-size:13.5px;line-height:1.45;margin-top:10px;color:#d6d9dd}
   .sgx{margin-bottom:12px}
+  .rtbtn{width:100%;border:1px dashed #4a5058;background:none;color:var(--text);font:600 14.5px Inter;border-radius:12px;padding:12px;cursor:pointer;margin-bottom:12px}
+  .rtbox{margin:-4px 0 14px}
+  .rtbox textarea{width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--line);border-radius:12px;color:var(--text);font:15px/1.45 Inter;padding:12px;resize:vertical}
+  .rtn{display:flex;gap:8px;align-items:center}.rtn span{font:700 13px Inter;color:var(--accent);width:16px}
+  .rtn input{flex:1;background:none;border:0;border-bottom:1px solid var(--line);color:var(--text);font:700 16px Inter;padding:4px 0}
+  .rtl{list-style:none;margin:8px 0 6px;padding:0}.rtl li{display:flex;justify-content:space-between;gap:8px;font-size:14px;padding:4px 0;border-top:1px solid #262a2f}
+  .rtl li small{color:var(--faint);font-size:12px;white-space:nowrap}
   .sgh{font:700 12px Inter;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
   .sg{border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding:12px 14px 6px;margin-bottom:8px}
   .sg.on{border-color:var(--ok)}
@@ -566,6 +573,8 @@
   </div>
   <div class="card">
     <label class="l">Your split</label>
+    <button type="button" class="rtbtn" onclick="openRoutine('su')">📋 Build from my routine</button>
+    <div id="suRoutine" class="hide"></div>
     <div id="suSuggest"></div>
     <div class="chips" id="suPresets" style="margin-bottom:12px"></div>
     <div id="suSplit"></div>
@@ -610,6 +619,8 @@
   </div>
   <div class="card">
     <label class="l">Your split</label>
+    <button type="button" class="rtbtn" onclick="openRoutine('st')">📋 Build from my routine</button>
+    <div id="stRoutine" class="hide"></div>
     <div id="stSuggest"></div>
     <div class="chips" id="stPresets" style="margin-bottom:12px"></div>
     <div id="stSplit"></div>
@@ -683,7 +694,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.14.0";
+const APP_VERSION = "1.15.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -807,7 +818,7 @@ const splitDays = () => (profile && profile.split && profile.split.length ? prof
 const SPLIT = () => splitDays().map(d=>d.name);
 function typeOf(name){ const d=splitDays().find(x=>x.name===name); return d ? d.type : (DAYTYPES[name] ? name : null); }
 function tmplFor(name, call){ const t=DAYTYPES[typeOf(name)]; return t ? t[call==="comp"?"comp":"hyper"] : []; }
-function suggestFor(name){ const t=DAYTYPES[typeOf(name)]; return t ? [...new Set([...t.hyper, ...t.comp])] : []; }
+function suggestFor(name){ const t=DAYTYPES[typeOf(name)], d=splitDays().find(x=>x.name===name); return [...new Set([...((d&&d.ex)||[]), ...(t ? [...t.hyper, ...t.comp] : [])])]; }
 function liftEntries(d){ const v=lifts[d]; return v ? (Array.isArray(v) ? v : (v.entries||[])) : []; }
 
 /* ================= dates ================= */
@@ -1423,7 +1434,21 @@ Object.assign(EX, {
   "KB Overhead Tricep Extension":{eq:["kettlebell"],alts:["Overhead DB Extension","Band Overhead Extension","Close-Grip Push-up"]},
   "KB Clean":{eq:["kettlebell"],alts:["Kettlebell Swing","KB High Pull"]},
   "KB Snatch":{eq:["kettlebell"],alts:["Kettlebell Swing","KB Clean"]},
-  "Turkish Get-up":{eq:["kettlebell"],alts:["KB Halo","Pike Push-up"]}
+  "Turkish Get-up":{eq:["kettlebell"],alts:["KB Halo","Pike Push-up"]},
+  "Adductor Machine":{eq:["machine"],alts:["Cable Hip Adduction","Copenhagen Plank"]},
+  "Cable Hip Adduction":{eq:["cable"],alts:["Adductor Machine","Copenhagen Plank"]},
+  "Copenhagen Plank":{eq:["bench"],alts:["Adductor Machine","Cable Hip Adduction"]},
+  "Hip Abduction Machine":{eq:["machine"],alts:["Band Hip Abduction","Cable Pull-Through"]},
+  "Band Hip Abduction":{eq:["bands"],alts:["Hip Abduction Machine","Glute Bridge"]},
+  "Seated Calf Raise":{eq:["machine"],alts:["Calf Raise","DB Calf Raise"]},
+  "DB Shrug":{eq:["dumbbell"],alts:["Barbell Shrug"]},
+  "Barbell Shrug":{eq:["barbell"],alts:["DB Shrug"]},
+  "Cable Crunch":{eq:["cable"],alts:["Decline Crunch","Ab Wheel Rollout","Plank"]},
+  "Hanging Leg Raise":{eq:["bar"],alts:["Decline Crunch","Plank"]},
+  "Ab Wheel Rollout":{eq:[],alts:["Plank","Cable Crunch"]},
+  "Plank":{eq:[],alts:["Ab Wheel Rollout","Dead Bug"]},
+  "Dead Bug":{eq:[],alts:["Plank"]},
+  "Decline Crunch":{eq:["bench"],alts:["Cable Crunch","Hanging Leg Raise","Plank"]}
 });
 const KB_ALTS = {
   "Bench Press":["KB Floor Press"],"DB Bench Press":["KB Floor Press"],"Machine Chest Press":["KB Floor Press"],"Push-up":["KB Floor Press"],
@@ -1514,7 +1539,18 @@ function userList(split, before){
 function planList(split, call, before){
   const t=tmplFor(split, call);
   const u=userList(split, before);
-  if(!u.list) return {names:t.slice(0, call==="comp" ? 4 : 5), mine:false, n:0, pool:[]};
+  if(!u.list){
+    const r=routineOf(split);
+    if(r && call==="comp"){
+      const comps=r.filter(isCompound), isos=r.filter(n=>!isCompound(n));
+      const picked=[...comps.slice(0,3), ...isos.slice(0,2)];
+      if(picked.length<3) r.forEach(n=>{ if(picked.length<4 && !picked.includes(n)) picked.push(n); });
+      const dropped=r.filter(n=>!picked.includes(n));
+      return {names:picked, mine:false, routine:true, n:0, pool:dropped, trimmed:dropped.length};
+    }
+    if(r) return {names:r.slice(0,12), mine:false, routine:true, n:0, pool:[]};
+    return {names:t.slice(0, call==="comp" ? 4 : 5), mine:false, n:0, pool:[]};
+  }
   if(call==="comp"){
     // Heavy day: your strongest compound leads, then up to 2 more compounds and 2 accessories.
     const comps=u.list.filter(isCompound), isos=u.list.filter(n=>!isCompound(n));
@@ -1597,7 +1633,7 @@ function buildPlan(date, split, call){
     let hs = ts && call==="comp" ? Math.min(ts,3) : ts;
     if(hs && fb && call==="comp" && p.mine){ if(fb.vol==="more" && idx<2) hs=hs+1; if(fb.vol==="less" && !isCompound(name)) hs=2; }
     if(dl) hs=Math.max(1, Math.round((hs||3)*0.6));
-    const rx=rxFor(call, idx, hs, p.mine ? name : null), st=recentStats(name, date);
+    const rx=rxFor(call, idx, hs, (p.mine||p.routine) ? name : null), st=recentStats(name, date);
     let w=null, w2=null, txt, bw=false;
     let prog = p.mine && call!=="comp" && st && name===orig ? progression(st.last.top, fb && fb.feel) : null;
     if(prog && dl){ const t=st.last.top; prog={w:t.w, reps:t.r, note: t.w>0 ? `Deload: same ${fmtW(t.w)} ${U()}, fewer sets. Leave 3+ reps in the tank.` : "Deload: fewer sets, leave 3+ reps in the tank."}; }
@@ -1822,11 +1858,12 @@ function renderWeekWins(){
 }
 
 /* ================= muscles & weekly volume ================= */
-const MUSCLES=[["chest","Chest"],["back","Back"],["shoulders","Shoulders"],["biceps","Biceps"],["triceps","Triceps"],["quads","Quads"],["hams","Hamstrings"],["glutes","Glutes"],["calves","Calves"],["abs","Abs"]];
+const MUSCLES=[["chest","Chest"],["back","Back"],["shoulders","Shoulders"],["biceps","Biceps"],["triceps","Triceps"],["quads","Quads"],["hams","Hamstrings"],["glutes","Glutes"],["calves","Calves"],["abs","Abs"],["adductors","Adductors"]];
 const MUS_LABEL=Object.fromEntries(MUSCLES);
 // First match wins. 1 = the muscle the exercise is for; 0.5 = a helper muscle (counts as half a set).
 const MUS_RULES=[
   [/\bcalf|\bcalves\b/, {calves:1}],
+  [/\b(adduct(ion|or|ors)?|copenhagen)\b/, {adductors:1}],
   [/\b(crunch(es)?|planks?|sit-?ups?|leg raises?|knee raises?|toes to bar|russian twists?|wood ?chops?|pallof|ab wheel|roll-?outs?|dead ?bugs?|hollow|v-?ups?|abs|ab|obliques?|dragon flags?|side bends?)\b/, {abs:1}],
   [/\b(leg curls?|hamstring curls?|nordic|lying curls?|glute[- ]ham)\b/, {hams:1}],
   [/\b(glutes?|hip thrusts?|thrusts?|bridges?|abduct(ion|or)s?|donkey kicks?|frog pumps?|pull-?throughs?|swings?)\b/, {glutes:1, hams:0.5}],
@@ -2049,6 +2086,134 @@ function bumpBw(d){
   if(!(v>0)){ const R=bwEntries(); v = R.length ? R[R.length-1].w : (Number(profile && profile.bw)||(U()==="kg"?80:180)); d=0; }
   el.value=(Math.round((v+d*0.2)*10)/10).toFixed(1); form.bw=Number(el.value); dirty=true;
 }
+
+/* ================= build from my routine ================= */
+// Lines like "3 chest", "Three chest", "2 rowing", "1 rear delts", or exercise names like "Bench Press 4x8".
+// A blank line (or a heading like "Day 2:" / "Monday") starts a new day.
+const RT_CATS=[
+  {k:"rear",  re:/\brear\b|reverse fly|face pull/, lbl:"rear delts", mus:"shoulders", pool:["Rear Delt Fly","Face Pull","Reverse Pec Deck","Band Pull-Apart"]},
+  {k:"add",   re:/\badd?uct\w*|\binner thighs?\b|\bgroin\b/, lbl:"adductors", mus:"adductors", pool:["Adductor Machine","Cable Hip Adduction","Copenhagen Plank"]},
+  {k:"abd",   re:/\babduct\w*|\bouter thighs?\b/, lbl:"abductors", mus:"glutes", pool:["Hip Abduction Machine","Band Hip Abduction"]},
+  {k:"row",   re:/\brow(s|ing)?\b/, lbl:"rows", mus:"back", pool:["Barbell Row","Seated Cable Row","DB Row","Machine Row","Inverted Row"]},
+  {k:"pd",    re:/\bpull ?-?downs?\b|\blat pull\w*|\bpull ?-?ups?\b|\bchin ?-?ups?\b|\bvertical\b/, lbl:"pulldowns", mus:"back", pool:["Lat Pulldown","Pull-up","Straight-Arm Pulldown","Weighted Pull-up","Assisted Pull-up Machine"]},
+  {k:"trap",  re:/\btraps?\b|shrugs?/, lbl:"traps", mus:"back", pool:["DB Shrug","Barbell Shrug"]},
+  {k:"chest", re:/\bchest\b|\bpecs?\b/, lbl:"chest", mus:"chest", pool:["Bench Press","Incline DB Press","Cable Fly","Machine Chest Press","Incline Bench Press","DB Bench Press","Pec Deck","DB Fly","Dips","Push-up"]},
+  {k:"sh",    re:/\bshoulders?\b|\bdelts?\b|\blaterals?\b|\bside raises?\b/, lbl:"shoulders", mus:"shoulders", pool:["Seated DB Press","Lateral Raise","Overhead Press","Cable Lateral Raise","Machine Shoulder Press","Machine Lateral Raise"]},
+  {k:"bi",    re:/\bbi(s|cep|ceps)?\b/, lbl:"biceps", mus:"biceps", pool:["Barbell Curl","Hammer Curl","Incline DB Curl","Cable Curl","DB Curl","Rope Hammer Curl"]},
+  {k:"tri",   re:/\btri(s|cep|ceps)?\b/, lbl:"triceps", mus:"triceps", pool:["Tricep Pushdown","Overhead Tricep Extension","Skull Crusher","Close-Grip Bench Press","Overhead DB Extension","Dips"]},
+  {k:"quad",  re:/\bquads?\b|quadriceps/, lbl:"quads", mus:"quads", pool:["Back Squat","Leg Press","Leg Extension","Hack Squat","Bulgarian Split Squat","Walking Lunge","Goblet Squat"]},
+  {k:"ham",   re:/\bhams?\b|hamstrings?/, lbl:"hamstrings", mus:"hams", pool:["Romanian Deadlift","Leg Curl","Single-Leg RDL","Nordic Curl"]},
+  {k:"glute", re:/\bglutes?\b|\bbutt\b|\bbooty\b/, lbl:"glutes", mus:"glutes", pool:["Hip Thrust","Bulgarian Split Squat","Glute Bridge","Cable Pull-Through","Hip Abduction Machine"]},
+  {k:"calf",  re:/\bcalf\b|\bcalves\b/, lbl:"calves", mus:"calves", pool:["Calf Raise","Seated Calf Raise","DB Calf Raise","Single-Leg Calf Raise"]},
+  {k:"abs",   re:/\babs?\b|\bcore\b|obliques?/, lbl:"abs", mus:"abs", pool:["Cable Crunch","Hanging Leg Raise","Ab Wheel Rollout","Plank","Decline Crunch"]},
+  {k:"back",  re:/\bback\b|\blats?\b/, lbl:"back", mus:"back", pool:["Barbell Row","Lat Pulldown","Seated Cable Row","Pull-up","DB Row","Straight-Arm Pulldown"]},
+  {k:"legs",  re:/\blegs?\b/, lbl:"legs", mus:"quads", pool:["Back Squat","Romanian Deadlift","Leg Press","Leg Curl","Leg Extension"]},
+  {k:"arms",  re:/\barms?\b/, lbl:"arms", mus:"biceps", pool:["Barbell Curl","Tricep Pushdown","Hammer Curl","Overhead Tricep Extension"]}
+];
+const NUMW={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,a:1,an:1,single:1,couple:2,pair:2};
+function parseRoutine(text){
+  const days=[]; let cur=null;
+  const newDay=name=>{ cur={name:name||"", items:[]}; days.push(cur); };
+  String(text||"").replace(/\r/g,"").split("\n").forEach(raw=>{
+    let line=raw.trim().replace(/^[-•*·]+\s*/,"");
+    if(!line){ if(cur && cur.items.length) cur=null; return; }
+    const low=line.toLowerCase();
+    const head=low.match(/^(day\s*\d+|mon(day)?|tue(s|sday)?|wed(nesday)?|thu(rs|rsday)?|fri(day)?|sat(urday)?|sun(day)?)\b\s*[:\-–]?\s*(.*)$/);
+    if(head || /:\s*$/.test(line)){
+      const rest = head ? line.slice(line.length-head[head.length-1].length).trim() : line.replace(/:\s*$/,"").trim();
+      newDay(head ? rest.replace(/^[:\-–]\s*/,"") : rest);
+      if(head && rest && /\d/.test(rest)) { cur.name=""; addLine(rest); }   // "Day 1: 3 chest"
+      return;
+    }
+    addLine(line);
+    function addLine(l){
+      if(!cur) newDay("");
+      const ll=l.toLowerCase();
+      const sr=ll.match(/(\d+)\s*(?:x|×|sets? of)\s*(\d+)/);            // 4x8, 3 sets of 10
+      let n=null, rest=ll;
+      const m=ll.match(/^(\d+)\s*x?\s+(.+)$/) || ll.match(/^(.+?)\s*[x×:\-]?\s*(\d+)$/);
+      const w=ll.match(/^([a-z]+)\s+(.+)$/);
+      if(!sr && m){ if(/^\d/.test(m[1])){ n=+m[1]; rest=m[2]; } else { n=+m[2]; rest=m[1]; } }
+      else if(!sr && w && NUMW[w[1]]!=null){ n=NUMW[w[1]]; rest=w[2]; }
+      rest=rest.replace(/\b(exercises?|movements?|lifts?|of)\b/g,"").trim();
+      const leftover=RT_CATS.reduce((t,c)=>t.replace(new RegExp(c.re.source,"g")," "), rest).replace(/\b(side|front|upper|lower|inner|outer|mid|heavy|light|focus|work|and|for|the|day|isolation|compound)\b|[&+,\/()]/g," ").replace(/[^a-z]/g,"");
+      const cat=!sr && leftover.length<=2 && RT_CATS.find(c=>c.re.test(rest));
+      if(cat) cur.items.push({cat:cat.k, n:Math.max(1,Math.min(6,n||1)), txt:l});
+      else { const nm=l.replace(/(\d+)\s*(?:x|×|sets? of)\s*(\d+).*/i,"").replace(/^\d+\s*x?\s+/,"").replace(/[\s:\-–]+$/,"").trim(); if(/[a-z]/i.test(nm)) cur.items.push({ex:canonName(nm), sets: sr?Math.min(10,+sr[1]):(n&&n<=10?n:null), txt:l}); }
+    }
+  });
+  return days.filter(d=>d.items.length).slice(0,10);
+}
+function pickFromPool(cat, n, taken, used){
+  const c=RT_CATS.find(x=>x.k===cat); const low=new Set(taken.map(normEx));
+  const cands=c.pool.map(x=>hasEq(x)?x:autoAlt(x)).filter((x,i,a)=>a.indexOf(x)===i && !low.has(normEx(x)));
+  cands.sort((a,b)=>(used[a]||0)-(used[b]||0) || c.pool.indexOf(a)-c.pool.indexOf(b));
+  return cands.slice(0,n);
+}
+function dayLabel(items, mus){
+  const cnt={}; items.forEach(it=>{ const m=it.mus; if(m && !["abs","calves","adductors"].includes(m)) cnt[m]=(cnt[m]||0)+it.w; });
+  const ks=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]);
+  const UP=["chest","back","shoulders","biceps","triceps"], LO=["quads","hams","glutes"];
+  const up=ks.filter(k=>UP.includes(k)), lo=ks.filter(k=>LO.includes(k));
+  if(!ks.length) return "Core";
+  if(up.length && lo.length) return "Full Body";
+  if(lo.length){ const q=cnt.quads||0, hg=(cnt.hams||0)+(cnt.glutes||0); return q>=2*hg ? "Quads" : hg>=2*q ? (cnt.glutes>cnt.hams?"Glutes":"Hamstrings / Glutes") : "Lower"; }
+  if(up.length>=4) return "Upper";
+  return up.slice(0,3).map(k=>MUS_LABEL[k]).join(" / ");
+}
+function bestType(names){
+  const vec=list=>{ const v={}; list.forEach(n=>{ const m=musclesOf(n); for(const k in m) v[k]=(v[k]||0)+m[k]; }); return v; };
+  const a=vec(names), dot=(x,y)=>Object.keys(x).reduce((s,k)=>s+x[k]*(y[k]||0),0), nrm=x=>Math.sqrt(dot(x,x))||1;
+  let best="Full Body", bs=-1;
+  Object.entries(DAYTYPES).forEach(([t,d])=>{ const b=vec([...d.hyper]); const sc=dot(a,b)/(nrm(a)*nrm(b)); if(sc>bs){ bs=sc; best=t; } });
+  return best;
+}
+function buildRoutine(text){
+  const days=parseRoutine(text), used={};
+  return days.map(d=>{
+    const ex=[], info=[];
+    d.items.forEach(it=>{
+      if(it.ex){ if(!ex.some(x=>normEx(x)===normEx(it.ex))){ ex.push(it.ex); info.push({name:it.ex, from:"your pick", mus:primaryMus(it.ex)[0], w:1}); used[it.ex]=(used[it.ex]||0)+1; } return; }
+      const c=RT_CATS.find(x=>x.k===it.cat), got=pickFromPool(it.cat, it.n, ex, used);
+      got.forEach(g=>{ ex.push(g); used[g]=(used[g]||0)+1; info.push({name:g, from:c.lbl, mus:c.mus, w:1}); });
+    });
+    const label=d.name && !/^day\s*\d+$/i.test(d.name) ? d.name.slice(0,30) : dayLabel(info);
+    return {name:label, type:DAYTYPES[label] ? label : bestType(ex), ex:ex.slice(0,12), info:info.slice(0,12)};
+  }).filter(d=>d.ex.length);
+}
+let rtPreview=null;
+function openRoutine(prefix){
+  const el=document.getElementById(prefix+"Routine"); el.classList.toggle("hide"); if(el.classList.contains("hide")) return;
+  el.innerHTML=`<div class="rtbox"><label class="l" for="${prefix}RtText">Paste or type your normal week</label>
+    <textarea id="${prefix}RtText" rows="9" placeholder="3 chest&#10;2 shoulders&#10;2 biceps&#10;&#10;2 rowing&#10;2 pulldowns&#10;1 rear delts&#10;2 triceps&#10;&#10;Bench Press 4x8&#10;Incline DB Press 3x10"></textarea>
+    <div class="hint">One day per block, with a blank line between days. Write how many exercises per muscle ("3 chest", "two biceps", "1 rear delts"), or exercise names (with sets like 4x8 if you want). Headings like "Day 1:" or "Monday" work too.</div>
+    <button class="btn" style="height:46px;font-size:15px;margin-top:10px" onclick="previewRoutine('${prefix}')">Build my plan</button>
+    <div id="${prefix}RtOut"></div></div>`;
+  const ta=document.getElementById(prefix+"RtText"); ta.focus();
+}
+function previewRoutine(prefix){
+  const txt=document.getElementById(prefix+"RtText").value, R=buildRoutine(txt), out=document.getElementById(prefix+"RtOut");
+  if(!R.length){ out.innerHTML=`<div class="bwnote" style="color:#e8b04a">I couldn't find any days in that. Try lines like "3 chest" or "Bench Press", with a blank line between days.</div>`; rtPreview=null; return; }
+  const curSplit = prefix==="st" ? profile.split : null, keep = curSplit && curSplit.length===R.length;
+  rtPreview={prefix, days:R};
+  out.innerHTML=`<div class="sgh" style="margin-top:14px">Your week · ${R.length} day${R.length===1?"":"s"}</div>
+    ${R.map((d,i)=>`<div class="sg"><div class="rtn"><span>${i+1}</span><input type="text" maxlength="30" value="${esc(keep?curSplit[i].name:d.name)}" data-i="${i}" class="rtname" aria-label="Day name"></div>
+      <ul class="rtl">${d.info.map(x=>`<li>${esc(x.name)}<small>${esc(x.from)}</small></li>`).join("")}</ul>
+      ${(()=>{ const c=d.ex.filter(isCompound).length, h=Math.min(d.ex.length, Math.max(Math.min(c,3)+Math.min(d.ex.length-c,2), Math.min(3,d.ex.length))); return `<div class="sgm" style="margin:2px 0 6px">💪 Hypertrophy days: all ${d.ex.length} at 8–15 reps · 🏋️ Heavy days: ${h} exercises, ${c?"a top set of 5, then ":""}5–8 reps</div>`; })()}</div>`).join("")}
+    ${keep?`<label class="tog" style="margin-top:2px"><input type="checkbox" id="rtKeep" checked onchange="rtKeepNames(this.checked)"> Keep my current day names, so each day keeps its history</label>`:""}
+    <div class="hint">Your routine is a pump-style day, so the app splits it two ways. On <b>hypertrophy</b> days you do the whole list for 8–15 reps. On <b>heavy</b> days it trims to the main compound lifts, heavier for 5–8 reps, and the rest wait under ⇄ Swap. Your readiness picks which kind of day you get, so you stop doing the same thing every day. Every exercise starts at 3 sets. Picks fit your equipment, and the same muscle on two days gets different exercises. After you log a day, the plan follows what you actually did. Use ⇄ Swap on Today to change any pick.</div>
+    <button class="btn" style="height:46px;font-size:15px;margin-top:10px" onclick="applyRoutine()">Use this routine</button>`;
+}
+function rtKeepNames(on){ if(!rtPreview) return; const cs=profile.split; document.querySelectorAll(`#${rtPreview.prefix}RtOut .rtname`).forEach((inp,i)=>{ inp.value = on ? cs[i].name : rtPreview.days[i].name; }); }
+function applyRoutine(){
+  if(!rtPreview) return; const {prefix, days}=rtPreview;
+  const names=[...document.querySelectorAll(`#${prefix}RtOut .rtname`)].map(x=>x.value.trim());
+  const split=[]; days.forEach((d,i)=>split.push({name:uniqueName(names[i]||d.name, split, -1), type:d.type, ex:d.ex}));
+  if(prefix==="su"){ draft.split=split; renderSplitEditor("su"); document.getElementById("suRoutine").classList.add("hide"); toast("Routine loaded. Finish setup below"); }
+  else { profile.split=cleanSplit(split); if(store(KEYS.profile,profile)){ draft=null; renderSettings(); toast("Routine saved. Today's plan uses it"); } }
+  rtPreview=null;
+}
+function routineOf(split){ const d=splitDays().find(x=>x.name===split); return d && Array.isArray(d.ex) && d.ex.length ? d.ex : null; }
 
 /* ================= how-it-works guide ================= */
 const GUIDE_V=1;
@@ -2331,6 +2496,7 @@ function renderPlan(a){
   const done=new Set(liftEntries(form.date).map(e=>e.name.toLowerCase()));
   const doneAs={}; liftEntries(form.date).forEach(e=>{ if(e.forPlan) doneAs[e.forPlan.toLowerCase()]=e.name; });
   const src = plan.mine ? (plan.trimmed ? `Heavy day: your main lifts from last ${esc(a.split)} day (${nice(plan.last)}), trimmed down. The other ${plan.trimmed} are under ⇄ Swap if you have gas left.` : `What you did last ${esc(a.split)} day (${nice(plan.last)}). Anything you add or drop carries into next time.`)
+    : plan.routine ? (plan.trimmed ? `Heavy day from your routine: main lifts first. The other ${plan.trimmed} are under ⇄ Swap if you have gas left.` : `From your routine. Once you log this day, the plan follows what you actually did.`)
     : `Starter template. Once you log a ${esc(a.split)} session, the plan becomes what you actually did.`;
   const anyMissing=plan.items.some(i=>!i.st);
   el.innerHTML=`<div class="card plan">
@@ -2585,7 +2751,7 @@ function renderSplitEditor(prefix){
   document.getElementById(prefix+"AddBtn").onclick=()=>{ const t=document.getElementById(prefix+"Add").value; if(draft.split.length>=10){ toast("10 days max"); return; } draft.split.push({name:uniqueName(t,draft.split,-1), type:t}); renderSplitEditor(prefix); };
 }
 function cleanSplit(list){
-  const out=[]; list.forEach(d=>{ const t=DAYTYPES[d.type]?d.type:"Full Body"; let n=(d.name||"").trim().slice(0,30)||t; if(n.toLowerCase()==="rest") n=t; out.push({name:uniqueName(n,out,-1), type:t}); }); return out;
+  const out=[]; list.forEach(d=>{ const t=DAYTYPES[d.type]?d.type:"Full Body"; let n=(d.name||"").trim().slice(0,30)||t; if(n.toLowerCase()==="rest") n=t; const o={name:uniqueName(n,out,-1), type:t}; if(Array.isArray(d.ex)){ const ex=d.ex.filter(x=>typeof x==="string" && x.trim()).map(x=>x.trim().slice(0,60)).slice(0,12); if(ex.length) o.ex=ex; } out.push(o); }); return out;
 }
 function bumpNeed(prefix, d){
   if(prefix==="su"){ draft.sleepNeed=Math.max(4,Math.min(11,(draft.sleepNeed||DEFAULT_NEED)+d)); document.getElementById("suNeed").textContent=draft.sleepNeed.toFixed(1); return; }
