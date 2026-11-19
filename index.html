@@ -302,6 +302,13 @@
   .bwbox input::-webkit-outer-spin-button,.bwbox input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .bwnote{font-size:13.5px;line-height:1.45;margin-top:10px;color:#d6d9dd}
   .sgx{margin-bottom:12px}
+  .wz{margin:2px 0 12px}.wzbar{height:5px;background:#22262b;border-radius:3px;overflow:hidden}.wzbar i{display:block;height:100%;background:var(--accent);transition:width .25s}
+  .wzstep{font:600 12px Inter;color:var(--faint);margin-top:6px;letter-spacing:.06em;text-transform:uppercase}
+  .wzq{font-family:"Barlow Condensed";font-size:28px;font-weight:800;line-height:1.05;margin:2px 0 14px}
+  .slide{display:none;animation:gin .25s ease-out}.slide.on{display:block}
+  .wznav{display:flex;gap:8px;margin-top:4px}.wznav .btn{margin:0}
+  .schq{font:600 13px Inter;color:var(--muted);margin:14px 0 8px}.schq:first-child{margin-top:0}
+  .seg2.days button{font-size:17px}
   .rtbtn{width:100%;border:1px dashed #4a5058;background:none;color:var(--text);font:600 14.5px Inter;border-radius:12px;padding:12px;cursor:pointer;margin-bottom:12px}
   .rtbox{margin:-4px 0 14px}
   .rtbox textarea{width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--line);border-radius:12px;color:var(--text);font:15px/1.45 Inter;padding:12px;resize:vertical}
@@ -553,51 +560,65 @@
 
 <!-- SETUP (first launch) -->
 <section id="viewSetup" class="hide">
-  <div class="card hero">
-    <div class="big" style="font-size:34px;line-height:1">Your daily <span style="color:var(--accent)">training call</span></div>
-    <p>Each morning you log sleep, soreness and energy. Today's Call tells you whether to <b>rest</b>, go <b>hypertrophy</b>, or go <b>heavy</b>, builds the workout with suggested weights, tracks your lifts, and times your meals around training.</p>
-    <p class="muted" style="font-size:13px">Free. No account. Everything stays on this phone.</p>
+  <div class="wz"><div class="wzbar"><i id="wzFill"></i></div><div class="wzstep" id="wzStep"></div></div>
+  <div class="slide" data-s="0">
+    <div class="card hero">
+      <div class="big" style="font-size:34px;line-height:1">Your daily <span style="color:var(--accent)">training call</span></div>
+      <p>Each morning you log sleep, soreness and energy. Today's Call tells you whether to <b>rest</b>, go <b>hypertrophy</b>, or go <b>heavy</b>, then builds the workout with suggested weights.</p>
+      <p class="muted" style="font-size:13px">Free. No account. Everything stays on this phone. Setup takes about a minute.</p>
+    </div>
+    <button type="button" class="linkbtn" style="display:block;margin:0 auto 6px" onclick="document.getElementById('importFile').click()">Moving phones? Restore a backup</button>
   </div>
-  <div class="card">
-    <label class="l">Units</label>
+  <div class="slide" data-s="1"><div class="card">
+    <div class="wzq">Pounds or kilograms?</div>
     <div class="seg2" id="suUnits"></div>
-  </div>
-  <div class="card">
-    <label class="l">Current goal</label>
+  </div></div>
+  <div class="slide" data-s="2"><div class="card">
+    <div class="wzq">What's your goal right now?</div>
     <div class="seg2" id="suGoal"></div>
-  </div>
-  <div class="card">
-    <label class="l">About you</label>
+    <div class="hint">This sets how strict rest calls are, your protein target, and how body weight is judged. You can change it anytime.</div>
+  </div></div>
+  <div class="slide" data-s="3"><div class="card">
+    <div class="wzq">About you</div>
     <div class="seg2" id="suSex"></div>
     <div id="suCycle"></div>
-  </div>
-  <div class="card">
-    <label class="l">Your split</label>
+    <div class="hint">Used to suggest splits that fit common goals, and to offer optional cycle tracking.</div>
+  </div></div>
+  <div class="slide" data-s="4"><div class="card">
+    <div class="wzq">How often can you get to the gym?</div>
+    <div id="suSched"></div>
+  </div></div>
+  <div class="slide" data-s="5"><div class="card">
+    <div class="wzq">What equipment do you have?</div>
+    <div id="suEquip"></div>
+  </div></div>
+  <div class="slide" data-s="6"><div class="card">
+    <div class="wzq">Pick your split</div>
     <button type="button" class="rtbtn" onclick="openRoutine('su')">📋 Build from my routine</button>
     <div id="suRoutine" class="hide"></div>
     <div id="suSuggest"></div>
-    <div class="chips" id="suPresets" style="margin-bottom:12px"></div>
-    <div id="suSplit"></div>
-  </div>
-  <div class="card">
-    <label class="l">How much sleep do you need to feel good?</label>
+    <details class="which" id="suMore"><summary>Other splits, or edit the days</summary>
+      <div class="chips" id="suPresets" style="margin:10px 0 12px"></div>
+      <div id="suSplit"></div>
+    </details>
+  </div></div>
+  <div class="slide" data-s="7"><div class="card">
+    <div class="wzq">How much sleep do you need to feel good?</div>
     <div class="stepper"><button type="button" onclick="bumpNeed('su',-0.5)">−</button><div class="val"><span id="suNeed">7.5</span><small>hrs</small></div><button type="button" onclick="bumpNeed('su',0.5)">+</button></div>
     <div class="hint">Everyone's different. Your best guess is fine: the app fine-tunes this from your check-ins.</div>
+  </div></div>
+  <div class="slide" data-s="8">
+    <div class="card">
+      <label class="l" for="suBw">Body weight (optional)</label>
+      <div class="hint" style="margin:-4px 0 8px">Sizes your protein and carb targets.</div>
+      <input type="number" id="suBw" inputmode="decimal" placeholder="Used for protein and carb targets">
+    </div>
+    <div class="card disclaimer">
+      <b>Before you start</b>
+      <p>Today's Call gives general fitness guidance. It isn't medical advice and doesn't know your health history. Talk to a doctor before starting a new program, and stop any exercise that causes pain.</p>
+    </div>
   </div>
-  <div class="card">
-    <label class="l">Equipment you have</label>
-    <div id="suEquip"></div>
-  </div>
-  <div class="card">
-    <label class="l" for="suBw">Body weight (optional)</label>
-    <div class="hint" style="margin:-4px 0 8px">Sizes your protein and carb targets.</div>
-    <input type="number" id="suBw" inputmode="decimal" placeholder="Used for protein and carb targets">
-  </div>
-  <div class="card disclaimer">
-    <b>Before you start</b>
-    <p>Today's Call gives general fitness guidance. It isn't medical advice and doesn't know your health history. Talk to a doctor before starting a new program, and stop any exercise that causes pain.</p>
-  </div>
-  <button class="btn" onclick="finishSetup()">I understand. Let's go</button>
+  <div class="wznav"><button type="button" class="btn ghost" id="wzBack" onclick="suGo(-1)">Back</button><button type="button" class="btn" id="wzNext" onclick="suGo(1)">Next</button></div>
 </section>
 
 <!-- SETTINGS -->
@@ -616,6 +637,10 @@
     <label class="l">About you</label>
     <div class="seg2" id="stSex"></div>
     <div id="stCycle"></div>
+  </div>
+  <div class="card">
+    <label class="l">Your schedule</label>
+    <div id="stSched"></div>
   </div>
   <div class="card">
     <label class="l">Your split</label>
@@ -694,7 +719,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.15.0";
+const APP_VERSION = "1.16.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -770,14 +795,25 @@ const SPLIT_PICKS = {
   female: {bulk:["glute5","glute4","ul"], cut:["glute4","gufb","ul"], maintain:["glute4","gufb","ul"]},
   na:     {bulk:["pplul","ul","glute4"], cut:["ul","fb3","glute4"], maintain:["ul","fb3","ppl"]}
 };
+const SPLIT_DAYS={ppl2:[6,7], pplul:[5,6], bro:[5,6], ul:[3,5], fb3:[2,4], ppl:[3,7], glute4:[4,5], glute5:[5,6], gufb:[3,4]};
+function splitPicks(sexIn, g, days){
+  const sex = sexIn==="male"||sexIn==="female" ? sexIn : "na"; g=g||"maintain"; days=days||4;
+  const base=(SPLIT_PICKS[sex][g]||[]);
+  const pool={male:["ppl2","pplul","ul","ppl","bro","fb3"], female:["glute5","glute4","gufb","ul","fb3"], na:["pplul","ul","ppl","fb3","glute4","gufb","ppl2"]}[sex];
+  const fits=id=>{ const [lo,hi]=SPLIT_DAYS[id]; return days>=lo && days<=hi; };
+  const out=[...base.filter(fits), ...pool.filter(id=>fits(id) && !base.includes(id))];
+  if(out.length<2) ["fb3","ul"].forEach(id=>{ if(!out.includes(id)) out.push(id); });
+  return out.slice(0,3);
+}
 function renderSplitSuggest(prefix){
   const el=document.getElementById(prefix+"Suggest"); if(!el) return;
   const src = prefix==="su" ? draft : (profile||{});
   const sex = src.sex==="male"||src.sex==="female" ? src.sex : "na", g = (prefix==="su"?draft.goal:profile.goal) || "maintain";
   const cur = draft.split.map(d=>d.type).join("|");
-  const ids = SPLIT_PICKS[sex][g] || SPLIT_PICKS.na.maintain;
+  const nd = (prefix==="su" ? draft.days : profile.days) || null;
+  const ids = nd ? splitPicks(sex, g, nd) : (SPLIT_PICKS[sex][g] || SPLIT_PICKS.na.maintain);
   const who = {male:"men", female:"women", na:"you"}[sex];
-  el.innerHTML=`<div class="sgx"><div class="sgh">Suggested for ${esc(GOALS[g].label.toLowerCase())}${sex==="na"?"":" · "+who}</div>
+  el.innerHTML=`<div class="sgx"><div class="sgh">Suggested for ${esc(GOALS[g].label.toLowerCase())}${sex==="na"?"":" · "+who}${nd?" · "+nd+" days a week":""}</div>
     ${ids.map((id,i)=>{ const S=SPLITS[id], on=S.days.join("|")===cur;
       return `<div class="sg ${on?"on":""}"><div class="sgt"><b>${esc(S.name)}</b>${i===0?'<span class="top">Top pick</span>':""}</div>
         <div class="sgm">${esc(S.meta)} · ${S.days.length===1?esc(S.days[0])+" each time":S.days.map(esc).join(" → ")}</div>
@@ -785,9 +821,39 @@ function renderSplitSuggest(prefix){
         <button type="button" class="linkbtn" onclick="useSplit('${prefix}','${id}')">${on?"✓ Your split":"Use this split"}</button></div>`; }).join("")}
     <div class="hint" style="margin-top:4px">Any split works if you train hard and stay consistent. These fit your goal best. Or pick any option below and edit the days.</div></div>`;
 }
-function useSplit(prefix, id){
+function useSplit(prefix, id, auto){
   const S=SPLITS[id]; draft.split=[]; S.days.forEach(t=>draft.split.push({name:uniqueName(t,draft.split,-1), type:t}));
+  if(!auto) draft.splitTouched=true;
+  if(auto) return;
   renderSplitEditor(prefix); if(prefix==="st") toast("Tap Save split to keep it");
+}
+function renderSchedule(prefix, obj, onChange){
+  const el=document.getElementById(prefix+"Sched"); if(!el) return;
+  const days=obj.days||4, mins=obj.sessMin||60, warm=obj.warmIn!==false;
+  const save = ()=>{ if(prefix==="st"){ store(KEYS.profile,profile); prefs={...prefs, dur:profile.sessMin}; store(KEYS.prefs,prefs); syncFuelInputs(); } onChange(); };
+  el.innerHTML=`<div class="schq">Days a week</div>
+    <div class="seg2 days">${[2,3,4,5,6,7].map(n=>`<button type="button" class="${n===days?"on":""}" data-d="${n}">${n}</button>`).join("")}</div>
+    <div class="schq">How long is a session?</div>
+    <div class="stepper"><button type="button" data-m="-15">−</button><div class="val"><span>${mins}</span><small>min</small></div><button type="button" data-m="15">+</button></div>
+    <div class="schq">Does that include your warm-up?</div>
+    <div class="seg2"><button type="button" class="${warm?"on":""}" data-w="1">Yes, warm-up included</button><button type="button" class="${warm?"":"on"}" data-w="0">No, it's extra</button></div>
+    <div class="hint">${prefix==="st" && !(profile.sessMin>0) ? "Not set yet, so plans aren't sized to a time limit. Tap a session length to set it." : schedText(days, mins, warm)}</div>`;
+  el.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{ obj.days=+b.dataset.d; save(); });
+  el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ obj.sessMin=Math.max(30,Math.min(180,(obj.sessMin||60)+(+b.dataset.m))); save(); });
+  el.querySelectorAll("[data-w]").forEach(b=>b.onclick=()=>{ obj.warmIn=b.dataset.w==="1"; save(); });
+}
+function schedText(days, mins, warm){
+  const lift = mins - (warm?10:0);
+  return `That's about <b>${lift} minutes of lifting</b>${warm?" after a 10-minute warm-up":", plus your warm-up"}. Plans are sized to fit, and suggested splits match ${days} days a week.`;
+}
+// Minutes of actual lifting for a session (heavy days lose ~5 min to warm-up sets on the main lift).
+function liftBudget(call){
+  if(!profile || !(profile.sessMin>0)) return null;
+  return profile.sessMin - (profile.warmIn!==false ? 10 : 0) - (call==="comp" ? 5 : 0);
+}
+function estMinutes(items, call){
+  return Math.round(items.reduce((t,it)=>{ const sets = it.rx.kind==="top" ? 1+it.rx.back : it.rx.sets, comp=isCompound(it.name);
+    const per = call==="comp" ? (comp?4:2.75) : (comp?2.75:2.25); return t + sets*per + 1.5; }, 0));
 }
 const GOALS = {
   cut:      {label:"Lose fat",  rest:50, heavy:72},
@@ -1625,7 +1691,7 @@ function buildPlan(date, split, call){
   const p=planList(split, call, date), dl=deloadOf(date);
   if(dl){ p.fb=null; if(p.added){ p.names=p.names.filter(n=>n!==p.added); p.added=null; } }
   const fb=p.fb, N=p.names.length, half=Math.ceil(N/2);
-  const items=p.names.map((orig,idx)=>{
+  const mk=(names, cap)=>names.map((orig,idx)=>{
     const name=resolveName(orig, date, p.mine);
     let ts = p.mine ? typicalSets(name, date) : null;
     if(p.added && orig===p.added && !ts) ts=3;
@@ -1633,6 +1699,7 @@ function buildPlan(date, split, call){
     let hs = ts && call==="comp" ? Math.min(ts,3) : ts;
     if(hs && fb && call==="comp" && p.mine){ if(fb.vol==="more" && idx<2) hs=hs+1; if(fb.vol==="less" && !isCompound(name)) hs=2; }
     if(dl) hs=Math.max(1, Math.round((hs||3)*0.6));
+    if(cap && cap[orig]!=null){ hs=Math.min(hs||3, cap[orig]); if(ts) ts=Math.min(ts, cap[orig]); }
     const rx=rxFor(call, idx, hs, (p.mine||p.routine) ? name : null), st=recentStats(name, date);
     let w=null, w2=null, txt, bw=false;
     let prog = p.mine && call!=="comp" && st && name===orig ? progression(st.last.top, fb && fb.feel) : null;
@@ -1656,7 +1723,21 @@ function buildPlan(date, split, call){
     if(p.added && orig===p.added) txt+=`<div class="ls" style="color:var(--ok)">Added from your feedback</div>`;
     return {name, orig, rx, w, bw, txt, st};
   });
-  return {...p, items, split, call, deload:dl, fbNote: fbNote(fb, call, N, half, p.added)};
+  let names=p.names, items=mk(names, null), fit=null;
+  const B=liftBudget(call);
+  if(B && !dl){
+    let est=estMinutes(items, call), cap={}, cappedSet=new Set(), dropped=[];
+    const over=()=>est>B*1.1;
+    const tryCap=lim=>{ for(let i=names.length-1;i>=0 && over();i--){ const n=names[i]; if((cap[n]??99)>lim){ const c={...cap,[n]:lim}, t=mk(names,c), e=estMinutes(t,call); if(e<est){ cap=c; items=t; est=e; cappedSet.add(n); } } } };
+    // Drop the exercise whose muscle is most doubled-up (a 3rd chest move goes before your only curl). The main lift stays.
+    const tryDrop=min=>{ while(over() && names.length>min){ const prim=names.map(n=>primaryMus(n)[0]||n); let k=-1, best=1;
+        for(let i=names.length-1;i>=1;i--){ const c=prim.filter(x=>x===prim[i]).length; if(c>best){ best=c; k=i; } }
+        if(k<0) k=names.length-1; dropped.push(names[k]); cappedSet.delete(names[k]); names=names.filter((_,j)=>j!==k); items=mk(names,cap); est=estMinutes(items,call); } };
+    if(over()){ tryCap(3); tryDrop(4); tryCap(2); tryDrop(3); }
+    fit={budget:B, est, capped:cappedSet.size, dropped};
+    if(dropped.length) p.pool=[...dropped, ...(p.pool||[]).filter(n=>!dropped.includes(n))];
+  }
+  return {...p, names, items, split, call, deload:dl, fit, fbNote: fbNote(fb, call, N, half, p.added)};
 }
 /* ================= workout timer ================= */
 const MAX_SESSION = 4*3600e3;
@@ -2209,7 +2290,7 @@ function applyRoutine(){
   if(!rtPreview) return; const {prefix, days}=rtPreview;
   const names=[...document.querySelectorAll(`#${prefix}RtOut .rtname`)].map(x=>x.value.trim());
   const split=[]; days.forEach((d,i)=>split.push({name:uniqueName(names[i]||d.name, split, -1), type:d.type, ex:d.ex}));
-  if(prefix==="su"){ draft.split=split; renderSplitEditor("su"); document.getElementById("suRoutine").classList.add("hide"); toast("Routine loaded. Finish setup below"); }
+  if(prefix==="su"){ draft.split=split; draft.splitTouched=true; renderSplitEditor("su"); document.getElementById("suRoutine").classList.add("hide"); toast("Routine loaded. Finish setup below"); }
   else { profile.split=cleanSplit(split); if(store(KEYS.profile,profile)){ draft=null; renderSettings(); toast("Routine saved. Today's plan uses it"); } }
   rtPreview=null;
 }
@@ -2502,7 +2583,7 @@ function renderPlan(a){
   el.innerHTML=`<div class="card plan">
     <label class="l">${a.call==="rest"?"Light session":call==="comp"?"Heavy session":"Hypertrophy session"} · ${esc(a.split)}</label>
     ${timeLine(form.date)}
-    <div class="src">${src}</div>${plan.deload?`<div class="src" style="color:var(--rest);margin-top:-4px">🔋 Deload week, day ${plan.deload.day}: about 60% of your usual sets, same weights.</div>`:""}${plan.fbNote?`<div class="src" style="color:var(--hyper);margin-top:-4px">${esc(plan.fbNote)}</div>`:""}
+    <div class="src">${src}</div>${plan.fit?`<div class="src" style="margin-top:-4px">⏱ About ${plan.fit.est} min of lifting${plan.fit.capped||plan.fit.dropped.length?`, sized for your ${profile.sessMin}-min session`:""}${plan.fit.capped?`: fewer sets on ${plan.fit.capped} exercise${plan.fit.capped===1?"":"s"}`:""}${plan.fit.dropped.length?`${plan.fit.capped?",":":"} ${esc(plan.fit.dropped.join(", "))} moved to ⇄ Swap`:""}.${profile.warmIn===false?" Warm up first.":""}</div>`:""}${plan.deload?`<div class="src" style="color:var(--rest);margin-top:-4px">🔋 Deload week, day ${plan.deload.day}: about 60% of your usual sets, same weights.</div>`:""}${plan.fbNote?`<div class="src" style="color:var(--hyper);margin-top:-4px">${esc(plan.fbNote)}</div>`:""}
     ${plan.items.map((it,i)=>{
       const inPlan=new Set(plan.items.map(x=>x.name.toLowerCase()));
       const mineAlts=(plan.pool||[]).filter(a=>!inPlan.has(a.toLowerCase())).slice(0,4);
@@ -2729,7 +2810,7 @@ function renderSplitEditor(prefix){
   const pre=document.getElementById(prefix+"Presets");
   pre.innerHTML=PRESETS.map((p,i)=>`<button type="button" data-i="${i}">${esc(p.name)}</button>`).join("");
   pre.querySelectorAll("button").forEach(b=>b.onclick=()=>{
-    const p=PRESETS[+b.dataset.i]; draft.split=[];
+    const p=PRESETS[+b.dataset.i]; draft.split=[]; draft.splitTouched=true;
     p.days.forEach(t=>draft.split.push({name:uniqueName(t,draft.split,-1), type:t}));
     renderSplitEditor(prefix);
   });
@@ -2770,8 +2851,23 @@ function renderSleepSettings(){
   }
   document.getElementById("stLearnInfo").innerHTML=t+` Each person needs their own phone (or browser), since data stays on the device.`;
 }
+let suStep=0; const SU_LAST=8;
+const SU_TITLES=["Welcome","Units","Goal","About you","Schedule","Equipment","Split","Sleep","Last step"];
+function suGo(d){
+  if(d>0 && suStep===SU_LAST){ finishSetup(); return; }
+  suStep=Math.max(0, Math.min(SU_LAST, suStep+d));
+  if(suStep===6 && !draft.splitTouched){ const top=splitPicks(draft.sex, draft.goal, draft.days)[0]; if(top) useSplit("su", top, true); }
+  renderSetup(); window.scrollTo(0,0);
+}
+function suJump(n){ suStep=Math.min(SU_LAST, n); renderSetup(); }
 function renderSetup(){
-  if(!draft) draft={units:"lb", goal:"maintain", split:PRESETS[0].days.map(t=>({name:t,type:t})), sleepNeed:DEFAULT_NEED};
+  if(!draft) draft={units:"lb", goal:"maintain", split:PRESETS[0].days.map(t=>({name:t,type:t})), sleepNeed:DEFAULT_NEED, days:4, sessMin:60, warmIn:true};
+  document.querySelectorAll("#viewSetup .slide").forEach(el=>el.classList.toggle("on", +el.dataset.s===suStep));
+  document.getElementById("wzFill").style.width=Math.round(suStep/SU_LAST*100)+"%";
+  document.getElementById("wzStep").textContent = suStep ? `Step ${suStep} of ${SU_LAST} · ${SU_TITLES[suStep]}` : "";
+  document.getElementById("wzBack").style.display = suStep ? "" : "none";
+  document.getElementById("wzNext").textContent = suStep===0 ? "Get started" : suStep===SU_LAST ? "I understand. Let's go" : "Next";
+  renderSchedule("su", draft, ()=>renderSetup());
   document.getElementById("suNeed").textContent=(draft.sleepNeed||DEFAULT_NEED).toFixed(1);
   segButtons(document.getElementById("suUnits"), [["lb","Pounds (lb)"],["kg","Kilograms (kg)"]], draft.units, v=>{ draft.units=v; renderSetup(); });
   segButtons(document.getElementById("suGoal"), Object.entries(GOALS).map(([k,g])=>[k,g.label]), draft.goal, v=>{ draft.goal=v; renderSetup(); });
@@ -2782,17 +2878,18 @@ function renderSetup(){
 }
 function finishSetup(){
   const split=cleanSplit(draft.split);
-  if(!split.length){ toast("Add at least one training day"); return; }
+  if(!split.length){ toast("Add at least one training day"); suStep=6; renderSetup(); return; }
   const bw=Number(document.getElementById("suBw").value);
-  profile={units:draft.units, goal:draft.goal, split, bw: bw>0?bw:"", sex:draft.sex||"na", cycle:cleanCycle(draft.cycle), equip:cleanEquip(draft.equip), swaps:{}, sleepNeed:draft.sleepNeed||DEFAULT_NEED, learn:true, acceptedAt:new Date().toISOString(), v:1};
+  profile={units:draft.units, goal:draft.goal, split, bw: bw>0?bw:"", sex:draft.sex||"na", cycle:cleanCycle(draft.cycle), equip:cleanEquip(draft.equip), swaps:{}, sleepNeed:draft.sleepNeed||DEFAULT_NEED, learn:true, acceptedAt:new Date().toISOString(), v:1, days:draft.days||4, sessMin:draft.sessMin||60, warmIn:draft.warmIn!==false};
+  prefs={...prefs, dur:profile.sessMin}; store(KEYS.prefs,prefs);
   if(profile.sex==="male") profile.cycle.on=false;
   if(!store(KEYS.profile, profile)){ profile=null; return; }
-  draft=null; applyUnits(); syncFuelInputs(); showView("today");
+  draft=null; suStep=0; applyUnits(); syncFuelInputs(); showView("today");
   badgeState={earned:{}, init:false}; checkBadges();   // start fresh so the first workout gets celebrated
   openGuide(false, "You're set. Do your first check-in ☀️");
 }
 function renderSettings(){
-  renderDeloadSettings();
+  renderDeloadSettings(); renderSchedule("st", profile, ()=>renderSettings());
   if(!draft) draft={units:profile.units, goal:profile.goal, split:profile.split.map(d=>({...d}))};
   segButtons(document.getElementById("stUnits"), [["lb","Pounds (lb)"],["kg","Kilograms (kg)"]], profile.units, v=>changeUnits(v));
   segButtons(document.getElementById("stGoal"), Object.entries(GOALS).map(([k,g])=>[k,g.label]), profile.goal, v=>{ profile.goal=v; store(KEYS.profile,profile); renderSettings(); toast("Goal updated"); });
@@ -2897,7 +2994,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const okDate=k=>/^\d{4}-\d{2}-\d{2}$/.test(k);
     const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object"){ L[k]={...d.logs[k]}; if(!(typeof L[k].bw==="number" && L[k].bw>0 && L[k].bw<1000)) delete L[k].bw; } });
     const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1}; if(typeof e.forPlan==="string") o.forPlan=e.forPlan.slice(0,60); if(typeof e.t==="number") o.t=e.t; return o; }); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
-    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false} : profile;
+    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false, days:(Number(d.profile.days)>=2&&Number(d.profile.days)<=7)?Number(d.profile.days):undefined, sessMin:(Number(d.profile.sessMin)>=30&&Number(d.profile.sessMin)<=180)?Number(d.profile.sessMin):undefined, warmIn:d.profile.warmIn!==false} : profile;
     const FB={}; if(d.feedback && typeof d.feedback==="object") Object.keys(d.feedback).filter(okDate).forEach(k=>{ const f=d.feedback[k]; if(f && typeof f==="object"){ const o={}; if(FEEL.some(x=>x[0]===f.feel)) o.feel=f.feel; if(VOL.some(x=>x[0]===f.vol)) o.vol=f.vol; if(typeof f.split==="string") o.split=f.split.slice(0,30); if(o.vol==="moreEx" && MUS_LABEL[f.mus]) o.mus=f.mus; if(o.feel||o.vol) FB[k]=o; } });
     const SS={}; if(d.sessions && typeof d.sessions==="object") Object.keys(d.sessions).filter(okDate).forEach(k=>{ const v=d.sessions[k]; if(v && typeof v.start==="number"){ SS[k]={start:v.start}; if(typeof v.end==="number" && v.end>v.start) SS[k].end=v.end; else SS[k].end=v.start+60*60e3; } });
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X) || !store(KEYS.fb,FB) || !store(KEYS.sess,SS)) return;
