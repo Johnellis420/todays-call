@@ -280,6 +280,36 @@
   .pbar i{display:block;height:100%;background:var(--accent)}
   .bpop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:24px}
   .bpop.hide{display:none}
+  .mv{display:grid;grid-template-columns:86px 1fr 34px;align-items:center;gap:8px;margin:7px 0;font-size:13.5px}
+  .mv .bar{position:relative;height:12px;background:#22262b;border-radius:6px;overflow:hidden}
+  .mv .bar .zone{position:absolute;top:0;bottom:0;background:#1d3326}
+  .mv .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:6px}
+  .mv .bar u{position:absolute;top:-2px;bottom:-2px;width:2px;background:#9aa3ad;text-decoration:none}
+  .mv b{text-align:right;font-family:"Barlow Condensed";font-size:18px}
+  .mv .nm small{display:block;font-size:10.5px;color:var(--hyper);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .mv.behind .bar i{background:#c9853a}
+  .sugl{font-size:13px;color:var(--hyper);margin:8px 0 6px;line-height:1.4}
+  .seg2 button.sug{box-shadow:inset 0 0 0 2px var(--hyper)}
+  .dl{background:linear-gradient(180deg,#1b2230,var(--panel) 75%);border-color:#33507a}
+  .dl .row2{display:flex;gap:8px;margin-top:10px}.dl .row2 .btn{margin:0;height:46px;font-size:15px}
+  .rclock.sm{font-size:40px;margin-top:8px}
+  .rclock .rb{display:flex;gap:14px;justify-content:center}
+  .rclock .rb button{display:inline-block;margin:2px 0 0}
+  .tog{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);margin-top:12px}
+  .bwbox{display:flex;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:220px}
+  .bwbox button{width:44px;height:50px;border:0;background:none;color:var(--muted);font:700 20px Inter;cursor:pointer}
+  .bwbox input{flex:1;min-width:0;border:0;background:none;text-align:center;font:700 22px "Barlow Condensed",Inter;color:var(--text);-moz-appearance:textfield;height:50px}
+  .bwbox input::-webkit-outer-spin-button,.bwbox input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .bwnote{font-size:13.5px;line-height:1.45;margin-top:10px;color:#d6d9dd}
+  .sgx{margin-bottom:12px}
+  .sgh{font:700 12px Inter;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+  .sg{border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding:12px 14px 6px;margin-bottom:8px}
+  .sg.on{border-color:var(--ok)}
+  .sgt{display:flex;justify-content:space-between;align-items:center;font-size:15.5px}
+  .sgt .top{font:700 10.5px Inter;color:#1a1205;background:var(--accent);border-radius:999px;padding:3px 8px;text-transform:uppercase;letter-spacing:.05em}
+  .sgm{font-size:12px;color:var(--faint);margin:3px 0 6px}
+  .sgb{font-size:13.5px;line-height:1.45;color:#d6d9dd}
+  .sgn{font-size:13px;line-height:1.4;color:var(--hyper);margin-top:5px}
   .gpop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;justify-content:center;z-index:48;padding:16px}
   .gpop.hide{display:none}
   .gcard{background:var(--panel);border:1px solid #33373d;border-radius:22px;padding:20px 20px 16px;max-width:420px;width:100%;max-height:88vh;overflow:auto;animation:gin .3s ease-out}
@@ -338,6 +368,7 @@
 <!-- TODAY -->
 <section id="viewToday">
   <div id="callCard" class="call empty"></div>
+  <div id="deloadCard"></div>
   <div id="planCard"></div>
   <div id="fbToday"></div>
 
@@ -382,6 +413,11 @@
       <label class="l">Energy</label>
       <div class="seg" data-key="energy"></div>
       <div class="ends"><span>Drained</span><span>Fired up</span></div>
+    </div>
+    <div class="field">
+      <label class="l" for="bwIn">Morning weigh-in <span style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--faint)">(optional, <span class="U">lb</span>)</span></label>
+      <div class="bwbox"><button type="button" aria-label="less" onclick="bumpBw(-1)">−</button><input id="bwIn" type="number" inputmode="decimal" step="0.1" min="60" max="700" placeholder="–"><button type="button" aria-label="more" onclick="bumpBw(1)">+</button></div>
+      <div class="hint" style="margin-top:6px">Same time each morning, after the bathroom. The app tracks your 7-day average.</div>
     </div>
     <div class="field hide" id="cycField">
       <label class="l">Cycle symptoms <span style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--faint)">(cramps, bloating, headache…)</span></label>
@@ -444,6 +480,7 @@
     </div>
     <div class="last" id="lastTime"></div>
     <button class="btn" style="margin-top:12px" onclick="addSet()">Add set</button>
+    <div class="rclock sm" id="rClockL"></div>
     <div class="hint">Bodyweight moves: enter 0, or just the added weight.</div>
   </div>
 
@@ -474,6 +511,7 @@
     <label class="l">Rest timer</label>
     <div class="rest" id="restBtns"></div>
     <div class="rclock" id="rClock"></div>
+    <label class="tog"><input type="checkbox" id="autoRest" onchange="setAutoRest(this.checked)"> Start the rest timer by itself when I log a set</label>
   </div>
   <div class="card">
     <label class="l">Recent workouts</label>
@@ -484,6 +522,8 @@
 <!-- HISTORY -->
 <section id="viewHist" class="hide">
   <div id="weekWins"></div>
+  <div class="card" id="muscleCard"></div>
+  <div class="card" id="bwCard"></div>
   <div class="card" id="badgeCard"></div>
   <div class="stats" id="stats"></div>
   <div class="card hide" id="cycleInsight"></div>
@@ -526,6 +566,7 @@
   </div>
   <div class="card">
     <label class="l">Your split</label>
+    <div id="suSuggest"></div>
     <div class="chips" id="suPresets" style="margin-bottom:12px"></div>
     <div id="suSplit"></div>
   </div>
@@ -569,6 +610,7 @@
   </div>
   <div class="card">
     <label class="l">Your split</label>
+    <div id="stSuggest"></div>
     <div class="chips" id="stPresets" style="margin-bottom:12px"></div>
     <div id="stSplit"></div>
     <button class="btn" style="margin-top:12px;height:46px;font-size:15px" onclick="saveSplit()">Save split</button>
@@ -586,6 +628,10 @@
     <label class="l">Equipment you have</label>
     <div id="stEquip"></div>
     <div id="stSwaps"></div>
+  </div>
+  <div class="card">
+    <label class="l">Deload week</label>
+    <div id="deloadSet"></div>
   </div>
   <div class="card">
     <label class="l">How it works</label>
@@ -637,7 +683,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.13.0";
+const APP_VERSION = "1.14.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -665,6 +711,7 @@ const DAYTYPES = {
   "Back":           {comp:["Deadlift","Barbell Row","Weighted Pull-up","Seated Cable Row"], hyper:["Lat Pulldown","Seated Cable Row","DB Row","Straight-Arm Pulldown","Face Pull"]},
   "Shoulders":      {comp:["Overhead Press","Seated DB Press","Lateral Raise","Rear Delt Fly"], hyper:["Seated DB Press","Lateral Raise","Cable Lateral Raise","Rear Delt Fly","Face Pull"]},
   "Arms":           {comp:["Close-Grip Bench Press","Barbell Curl","Skull Crusher","Hammer Curl"], hyper:["Barbell Curl","Tricep Pushdown","Incline DB Curl","Overhead Tricep Extension","Hammer Curl"]},
+  "Glutes":         {comp:["Hip Thrust","Bulgarian Split Squat","Romanian Deadlift","Glute Bridge"], hyper:["Hip Thrust","Bulgarian Split Squat","Cable Pull-Through","Reverse Lunge","Glute Bridge"]},
   "Shoulders / Arms": {comp:["Overhead Press","Close-Grip Bench Press","Barbell Curl","Lateral Raise"], hyper:["Seated DB Press","Lateral Raise","Barbell Curl","Tricep Pushdown","Hammer Curl"]}
 };
 const PRESETS = [
@@ -673,8 +720,64 @@ const PRESETS = [
   {name:"PPL + Upper/Lower", days:["Push","Pull","Legs","Upper","Lower"]},
   {name:"Bro split", days:["Chest","Back","Legs","Shoulders","Arms"]},
   {name:"Full body", days:["Full Body"]},
-  {name:"Chest·Bi / Back·Tri / Quads / Upper / Lower", days:["Chest / Biceps","Back / Triceps","Quads","Upper","Lower"]}
+  {name:"Chest·Bi / Back·Tri / Quads / Upper / Lower", days:["Chest / Biceps","Back / Triceps","Quads","Upper","Lower"]},
+  {name:"Glute priority (4 days)", days:["Glutes","Upper","Hamstrings / Glutes","Upper"]},
+  {name:"Glute priority (5 days)", days:["Glutes","Upper","Lower","Upper","Hamstrings / Glutes"]}
 ];
+// Suggested splits, picked by goal and "About you". The rotation repeats, so "days a week" is how often you train.
+const SPLITS = {
+  ppl2:  {name:"Push / Pull / Legs ×2", days:["Push","Pull","Legs","Push","Pull","Legs"], meta:"6 days a week · each muscle 2×",
+          blurb:"The classic high-volume split. Every muscle gets hit twice a week with plenty of sets, which research favors over once a week for growth.",
+          note:{bulk:"Best for size if you can train 6 days and eat enough to recover.", cut:"A lot of training to recover from on a deficit. Watch your readiness.", maintain:"Lots of gym time to maintain. Fine if you love training."}},
+  pplul: {name:"PPL + Upper / Lower", days:["Push","Pull","Legs","Upper","Lower"], meta:"5 days a week · each muscle 2×",
+          blurb:"Push, pull and legs days for volume, plus upper and lower days for heavier compound work. A strong mix of size and strength.",
+          note:{bulk:"Great for building: high volume with heavy days built in.", cut:"Keeps your volume and strength up on a cut, for people who like training most days.", maintain:"A solid, balanced week."}},
+  bro:   {name:"Bro split", days:["Chest","Back","Legs","Shoulders","Arms"], meta:"5 days a week · each muscle 1×",
+          blurb:"One body part a day with a huge pump and lots of variety. Easy to focus, and every muscle gets a full week to recover.",
+          note:{bulk:"Fun and high volume, but each muscle only gets trained once a week. PPL ×2 usually grows faster.", cut:"Each muscle only gets trained once a week, which is harder to hold onto on a cut.", maintain:"Enjoyable and plenty to maintain."}},
+  ul:    {name:"Upper / Lower", days:["Upper","Lower"], meta:"4 days a week · each muscle 2×",
+          blurb:"Simple and proven. Every muscle twice a week with enough rest between sessions, so it builds strength and size without burning you out.",
+          note:{cut:"One of the best on a cut: heavy enough to keep your muscle, short enough to recover from.", bulk:"Great for strength and size, especially with a busy schedule.", maintain:"The easiest split to stick with long term."}},
+  fb3:   {name:"Full body", days:["Full Body"], meta:"3 days a week · each muscle 3×",
+          blurb:"Train everything each session. The most bang for your time, and the best start if you're new or busy.",
+          note:{cut:"Keeps your strength with the least gym time.", bulk:"Works, but harder to fit in lots of volume per muscle.", maintain:"Three sessions a week keeps everything."}},
+  ppl:   {name:"Push / Pull / Legs", days:["Push","Pull","Legs"], meta:"3–6 days a week",
+          blurb:"Each day trains muscles that work together, so sessions are focused. Run it 3 days a week or loop it twice for 6.",
+          note:{maintain:"Flexible: 3 days to maintain, 6 when you want to push.", bulk:"Loop it twice a week for the most growth.", cut:"Flexible around a busy week."}},
+  glute4:{name:"Glute priority", days:["Glutes","Upper","Hamstrings / Glutes","Upper"], meta:"4 days a week · glutes 2×, upper 2×",
+          blurb:"Two dedicated glute days from different angles: hip thrusts and lunges, then hinges like RDLs. Two upper days keep your shape balanced.",
+          note:{cut:"Keeps your glutes growing on a cut, and keeps the strength you've built.", bulk:"Steady glute growth with balanced upper work.", maintain:"The best balance of glutes and everything else."}},
+  glute5:{name:"Glute priority+", days:["Glutes","Upper","Lower","Upper","Hamstrings / Glutes"], meta:"5 days a week · glutes 3×",
+          blurb:"Glutes three times a week (thrusts, squats and lunges, then hinges) for the fastest glute growth, with two upper days.",
+          note:{bulk:"The most glute growth, if you can train 5 days and eat enough.", cut:"A lot of leg volume on a deficit. Watch your readiness.", maintain:"For when glutes are the top priority."}},
+  gufb:  {name:"Glutes / Upper / Full body", days:["Glutes","Upper","Full Body"], meta:"3 days a week · glutes 2×",
+          blurb:"Three sessions a week that still hit glutes twice: a glute day, an upper day, and a full-body day with hinges and lunges.",
+          note:{cut:"Busy-week friendly and easy to recover from on a cut.", bulk:"A good start, then move to Glute priority when you want more.", maintain:"Maintain your shape in 3 days."}}
+};
+const SPLIT_PICKS = {
+  male:   {bulk:["ppl2","pplul","ul","bro"], cut:["ul","pplul","fb3"], maintain:["ul","ppl","fb3"]},
+  female: {bulk:["glute5","glute4","ul"], cut:["glute4","gufb","ul"], maintain:["glute4","gufb","ul"]},
+  na:     {bulk:["pplul","ul","glute4"], cut:["ul","fb3","glute4"], maintain:["ul","fb3","ppl"]}
+};
+function renderSplitSuggest(prefix){
+  const el=document.getElementById(prefix+"Suggest"); if(!el) return;
+  const src = prefix==="su" ? draft : (profile||{});
+  const sex = src.sex==="male"||src.sex==="female" ? src.sex : "na", g = (prefix==="su"?draft.goal:profile.goal) || "maintain";
+  const cur = draft.split.map(d=>d.type).join("|");
+  const ids = SPLIT_PICKS[sex][g] || SPLIT_PICKS.na.maintain;
+  const who = {male:"men", female:"women", na:"you"}[sex];
+  el.innerHTML=`<div class="sgx"><div class="sgh">Suggested for ${esc(GOALS[g].label.toLowerCase())}${sex==="na"?"":" · "+who}</div>
+    ${ids.map((id,i)=>{ const S=SPLITS[id], on=S.days.join("|")===cur;
+      return `<div class="sg ${on?"on":""}"><div class="sgt"><b>${esc(S.name)}</b>${i===0?'<span class="top">Top pick</span>':""}</div>
+        <div class="sgm">${esc(S.meta)} · ${S.days.length===1?esc(S.days[0])+" each time":S.days.map(esc).join(" → ")}</div>
+        <div class="sgb">${esc(S.blurb)}</div><div class="sgn">${esc(S.note[g]||"")}</div>
+        <button type="button" class="linkbtn" onclick="useSplit('${prefix}','${id}')">${on?"✓ Your split":"Use this split"}</button></div>`; }).join("")}
+    <div class="hint" style="margin-top:4px">Any split works if you train hard and stay consistent. These fit your goal best. Or pick any option below and edit the days.</div></div>`;
+}
+function useSplit(prefix, id){
+  const S=SPLITS[id]; draft.split=[]; S.days.forEach(t=>draft.split.push({name:uniqueName(t,draft.split,-1), type:t}));
+  renderSplitEditor(prefix); if(prefix==="st") toast("Tap Save split to keep it");
+}
 const GOALS = {
   cut:      {label:"Lose fat",  rest:50, heavy:72},
   maintain: {label:"Maintain",  rest:47, heavy:70},
@@ -713,11 +816,11 @@ function shift(ds,n){ const [y,m,d]=ds.split("-").map(Number); const t=new Date(
 function nice(ds){ const [y,m,d]=ds.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}); }
 const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const jsq = s => esc(String(s).replace(/\\/g,"\\\\").replace(/'/g,"\\'"));
-function blankForm(date){ return {date, sleepH:7, sleepQ:null, sore:null, energy:null, kcal:"", work:null, cyc:null, did:null}; }
+function blankForm(date){ return {date, sleepH:7, sleepQ:null, sore:null, energy:null, kcal:"", work:null, cyc:null, did:null, bw:null}; }
 function fromLog(date){
   const e = logs[date]; if(!e) return blankForm(date);
   return {date, sleepH:e.sleepH ?? 7, sleepQ:e.sleepQ ?? null, sore:e.sore ?? null, energy:e.energy ?? null,
-          kcal: e.kcal ?? "", work:e.work ?? null, cyc:e.cyc ?? null, did:e.did ?? null};
+          kcal: e.kcal ?? "", work:e.work ?? null, cyc:e.cyc ?? null, did:e.did ?? null, bw: typeof e.bw==="number" ? e.bw : null};
 }
 form = blankForm(localDate(new Date()));
 
@@ -858,6 +961,7 @@ function assess(f){
 function renderCall(){
   const el=document.getElementById("callCard");
   const a=assess(form);
+  renderDeloadCard();
   renderPlan(a);
   renderFeedback("fbToday", form.date);
   lastAssess=a; renderFuel(a);
@@ -905,6 +1009,7 @@ function renderForm(){
   document.getElementById("date").value=form.date;
   document.getElementById("sleepVal").textContent=form.sleepH.toFixed(1);
   document.getElementById("kcal").value=form.kcal;
+  document.getElementById("bwIn").value = form.bw>0 ? form.bw : "";
   document.querySelectorAll(".seg").forEach(seg=>{
     const k=seg.dataset.key;
     seg.querySelectorAll("button").forEach((b,i)=>b.classList.toggle("on", form[k]===i+1));
@@ -942,7 +1047,7 @@ function renderHist(){
   }).join("");
   document.getElementById("barsX").innerHTML=days.map(d=>`<span>${Number(d.slice(8))}</span>`).join("");
   renderCycleInsight(keys);
-  renderWeekWins(); renderBadges(); renderHistProgress();
+  renderWeekWins(); renderMuscleCard(); renderBwCard(); renderBadges(); renderHistProgress();
   const ul=document.getElementById("hist");
   if(!keys.length){ ul.innerHTML=`<div class="empty-hist">No entries yet. Your first check-in will show up here.</div>`; return; }
   const lbl={rest:"Rest",hyper:"Hypertrophy",comp:"Heavy"};
@@ -992,17 +1097,24 @@ function docBody(f){
   const body={date:f.date, sleepH:f.sleepH, sleepQ:f.sleepQ, sore:f.sore, energy:f.energy, did:f.did ?? null, updatedAt:new Date().toISOString()};
   if(f.kcal!=="") body.kcal=f.kcal;
   if(f.work!=null) body.work=f.work;
+  if(f.bw>0) body.bw=Math.round(f.bw*10)/10;
   if(f.cyc!=null && cycleOn()) body.cyc=f.cyc;
   if(a){ body.score=a.score; body.call=a.call; body.split=a.split; }
   return body;
 }
 function write(f, msg){
   const next={...logs, [f.date]:docBody(f)};
-  if(store(KEYS.logs, next)){ logs=next; dirty=false; if(msg) toast(msg); renderForm(); checkBadges(); return true; }
+  if(store(KEYS.logs, next)){ logs=next; dirty=false; syncBwProfile(); if(msg) toast(msg); renderForm(); checkBadges(); return true; }
   return false;
 }
+// Fuel timing and protein use your 7-day average weigh-in once you log one.
+function syncBwProfile(){
+  if(!profile) return; const E=bwEntries(); if(!E.length) return;
+  const a=Math.round((bwAvg(localDate(new Date()),E) ?? E[E.length-1].w)*10)/10;
+  if(profile.bw!==a){ profile.bw=a; store(KEYS.profile,profile); syncFuelInputs(); }
+}
 function save(){
-  if(!assess(form)){ toast("Rate sleep quality, soreness and energy first"); return; }
+  if(!assess(form)){ if(form.bw>0){ write(form, "Weigh-in saved"); return; } toast("Rate sleep quality, soreness and energy first"); return; }
   write(form, "Check-in saved");
 }
 function setDid(s){
@@ -1388,7 +1500,9 @@ function isCompound(name){
 // Your plan for a split day = what you actually did the last time you trained it, in that order.
 // Anything else you've done on that split day (last 8 sessions) becomes a swap suggestion.
 function userList(split, before){
-  const days=Object.keys(lifts).filter(d=>d<before && liftEntries(d).length && splitOfDate(d)===split).sort().reverse().slice(0,8);
+  let days=Object.keys(lifts).filter(d=>d<before && liftEntries(d).length && splitOfDate(d)===split).sort().reverse();
+  if(days.some(d=>!deloadOn(d))) days=days.filter(d=>!deloadOn(d));
+  days=days.slice(0,8);
   if(!days.length) return {list:null, n:0, pool:[]};
   const uniq = d => { const seen=[]; liftEntries(d).forEach(e=>{ if(!seen.some(x=>x.toLowerCase()===e.name.toLowerCase())) seen.push(e.name); }); return seen; };
   const list=uniq(days[0]);
@@ -1410,14 +1524,14 @@ function planList(split, call, before){
     if(picked.length<3) u.list.forEach(n=>{ if(picked.length<4 && !picked.includes(n)) picked.push(n); });
     const fb=fbFor(u.last, split);
     let added=null;
-    if(fb && fb.vol==="moreEx"){ added=u.list.find(n=>!picked.includes(n)) || u.pool[0] || extraFor(split,"comp",[...picked]); if(added) picked.push(added); }
+    if(fb && fb.vol==="moreEx"){ added=(fb.mus && exForMuscle(fb.mus, picked, u.list.filter(n=>!picked.includes(n)).concat(u.pool))) || u.list.find(n=>!picked.includes(n)) || u.pool[0] || extraFor(split,"comp",[...picked]); if(added) picked.push(added); }
     if(fb && fb.vol==="lessEx" && picked.length>3) picked.pop();
     const dropped=u.list.filter(n=>!picked.includes(n));
     return {names:picked, mine:true, n:u.n, pool:[...dropped, ...u.pool.filter(n=>n!==added)], last:u.last, trimmed:dropped.length, fb, added};
   }
   const fb=fbFor(u.last, split);
   let names=u.list.slice(0,12), pool=[...u.pool], added=null;
-  if(fb && fb.vol==="moreEx"){ added = pool[0] || extraFor(split,"hyper",names); if(added){ names=[...names, added]; pool=pool.filter(n=>n!==added); } }
+  if(fb && fb.vol==="moreEx"){ added = (fb.mus && exForMuscle(fb.mus, names, pool)) || pool[0] || extraFor(split,"hyper",names); if(added){ names=[...names, added]; pool=pool.filter(n=>n!==added); } }
   if(fb && fb.vol==="lessEx" && names.length>3){ pool=[names[names.length-1], ...pool]; names=names.slice(0,-1); }
   return {names, mine:true, n:u.n, pool, last:u.last, fb, added};
 }
@@ -1431,7 +1545,7 @@ function extraFor(split, call, have){
   return cands.find(n=>!low.has(normEx(n))) || null;
 }
 function recentStats(name, before){
-  const ss=sessions(name).filter(s=>s.date<before).slice(-3);
+  let ss=sessions(name).filter(s=>s.date<before); if(ss.some(s=>!deloadOn(s.date))) ss=ss.filter(s=>!deloadOn(s.date)); ss=ss.slice(-3);
   if(!ss.length) return null;
   const last=ss[ss.length-1];
   return {e1:Math.max(...ss.map(s=>s.best)), maxReps:Math.max(...ss.map(s=>s.maxReps)), last};
@@ -1453,7 +1567,7 @@ function rxFor(call, idx, sets, name){
   return {label:`${n} × 12–15`, reps:13, rir:2, sets:n};
 }
 function typicalSets(name, before){   // working sets you did last time
-  const ss=sessions(name).filter(s=>s.date<before);
+  let ss=sessions(name).filter(s=>s.date<before); if(ss.some(s=>!deloadOn(s.date))) ss=ss.filter(s=>!deloadOn(s.date));
   if(!ss.length) return null;
   return Math.min(10, ss[ss.length-1].sets.reduce((a,e)=>a+(e.s||1),0));
 }
@@ -1472,7 +1586,8 @@ function progression(top, feel){
   return {w, reps:Math.min(30, r+1), note: w>0 ? `Beat last time: ${fmtW(w)}×${r} → aim for ${r+1}.` : `Beat last time: ${r} reps → aim for ${r+1}.`};
 }
 function buildPlan(date, split, call){
-  const p=planList(split, call, date);
+  const p=planList(split, call, date), dl=deloadOf(date);
+  if(dl){ p.fb=null; if(p.added){ p.names=p.names.filter(n=>n!==p.added); p.added=null; } }
   const fb=p.fb, N=p.names.length, half=Math.ceil(N/2);
   const items=p.names.map((orig,idx)=>{
     const name=resolveName(orig, date, p.mine);
@@ -1481,9 +1596,11 @@ function buildPlan(date, split, call){
     if(ts && fb && call!=="comp"){ if(fb.vol==="more" && idx<half) ts=Math.min(8,ts+1); if(fb.vol==="less" && idx>=N-half) ts=Math.max(2,ts-1); }
     let hs = ts && call==="comp" ? Math.min(ts,3) : ts;
     if(hs && fb && call==="comp" && p.mine){ if(fb.vol==="more" && idx<2) hs=hs+1; if(fb.vol==="less" && !isCompound(name)) hs=2; }
+    if(dl) hs=Math.max(1, Math.round((hs||3)*0.6));
     const rx=rxFor(call, idx, hs, p.mine ? name : null), st=recentStats(name, date);
     let w=null, w2=null, txt, bw=false;
-    const prog = p.mine && call!=="comp" && st && name===orig ? progression(st.last.top, fb && fb.feel) : null;
+    let prog = p.mine && call!=="comp" && st && name===orig ? progression(st.last.top, fb && fb.feel) : null;
+    if(prog && dl){ const t=st.last.top; prog={w:t.w, reps:t.r, note: t.w>0 ? `Deload: same ${fmtW(t.w)} ${U()}, fewer sets. Leave 3+ reps in the tank.` : "Deload: fewer sets, leave 3+ reps in the tank."}; }
     if(prog){
       w=prog.w; rx.reps=prog.reps;
       txt = prog.w>0 ? `${rx.sets} × <b>${prog.reps}</b> @ <b>${prog.w} ${U()}</b>` : `${rx.sets} × <b>${prog.reps}</b> @ bodyweight`;
@@ -1503,7 +1620,7 @@ function buildPlan(date, split, call){
     if(p.added && orig===p.added) txt+=`<div class="ls" style="color:var(--ok)">Added from your feedback</div>`;
     return {name, orig, rx, w, bw, txt, st};
   });
-  return {...p, items, split, call, fbNote: fbNote(fb, call, N, half, p.added)};
+  return {...p, items, split, call, deload:dl, fbNote: fbNote(fb, call, N, half, p.added)};
 }
 /* ================= workout timer ================= */
 const MAX_SESSION = 4*3600e3;
@@ -1568,7 +1685,7 @@ function renderTimer(){
   const call=(lastAssess && lastAssess.call) || (logs[today] && logs[today].call) || "hyper";
   const rec = call==="comp" ? [120,180] : [60,90];
   document.getElementById("restBtns").innerHTML=[60,90,120,180].map(sec=>`<button type="button" class="${rec.includes(sec)?"rec":""}" onclick="startRest(${sec})">${sec<120?sec+"s":(sec/60)+" min"}${rec.includes(sec)?`<small>${call==="comp"?"heavy":"pump"}</small>`:""}</button>`).join("");
-  renderRest();
+  renderRest(); document.getElementById("autoRest").checked = prefs.autoRest!==false;
   // recent workouts
   const ds=Object.keys(sessT).filter(d=>sessT[d].end).sort().reverse();
   const h=document.getElementById("tHist");
@@ -1583,17 +1700,24 @@ function startRest(sec){
   try{ restAudio = restAudio || new (window.AudioContext||window.webkitAudioContext)(); if(restAudio.state==="suspended") restAudio.resume(); }catch(_){ restAudio=null; }
   restEnd=Date.now()+sec*1000; clearInterval(restTick); restTick=setInterval(renderRest,250); renderRest();
 }
+function restFor(name){
+  const today=localDate(new Date()), call=(logs[today] && logs[today].call) || (lastAssess && lastAssess.call) || "hyper";
+  if(deloadOn(today)) return 90;
+  return call==="comp" ? (isCompound(name) ? 180 : 120) : 90;
+}
+function addRest(sec){ if(!restEnd) return; restEnd=Math.max(restEnd, Date.now())+sec*1000; if(!restTick) restTick=setInterval(renderRest,250); renderRest(); }
+function setAutoRest(on){ prefs={...prefs, autoRest:!!on}; store(KEYS.prefs,prefs); toast(on?"Rest timer will start after each set":"Rest timer won't start by itself"); }
 function stopRest(){ restEnd=0; clearInterval(restTick); renderRest(); }
 function beep(){ try{ if(!restAudio) return; [0,0.25,0.5].forEach(t=>{ const o=restAudio.createOscillator(), g=restAudio.createGain(); o.frequency.value=880; o.connect(g); g.connect(restAudio.destination); g.gain.setValueAtTime(0.25, restAudio.currentTime+t); g.gain.exponentialRampToValueAtTime(0.001, restAudio.currentTime+t+0.2); o.start(restAudio.currentTime+t); o.stop(restAudio.currentTime+t+0.2); }); }catch(_){} }
 function renderRest(){
-  const el=document.getElementById("rClock"); if(!el) return;
-  if(!restEnd){ el.innerHTML=""; el.className="rclock"; return; }
+  const els=[["rClock","rclock"],["rClockL","rclock sm"]].map(([id,c])=>[document.getElementById(id),c]).filter(x=>x[0]);
+  if(!restEnd){ els.forEach(([el,c])=>{ el.innerHTML=""; el.className=c; }); return; }
   const left=restEnd-Date.now();
   if(left<=0){
     if(restTick){ clearInterval(restTick); restTick=null; beep(); try{ navigator.vibrate && navigator.vibrate([250,120,250]); }catch(_){} toast("Rest's up. Next set"); }
-    el.className="rclock done"; el.innerHTML=`Go<button type="button" onclick="stopRest()">Dismiss</button>`; return;
+    els.forEach(([el,c])=>{ el.className=c+" done"; el.innerHTML=`Go<div class="rb"><button type="button" onclick="stopRest()">Dismiss</button></div>`; }); return;
   }
-  el.className="rclock"; el.innerHTML=`${fmtClock(left+999)}<button type="button" onclick="stopRest()">Cancel</button>`;
+  els.forEach(([el,c])=>{ el.className=c; el.innerHTML=`${el.id==="rClockL"?'<span style="font:600 12px Inter;color:var(--muted);letter-spacing:.08em;display:block">REST</span>':""}${fmtClock(left+999)}<div class="rb"><button type="button" onclick="addRest(30)">+30s</button><button type="button" onclick="stopRest()">${el.id==="rClockL"?"Skip":"Cancel"}</button></div>`; });
 }
 // a timer left running (forgot to tap Finish) stops itself at the last logged set
 function autoStopStale(){
@@ -1693,7 +1817,237 @@ function renderWeekWins(){
   const r1=lv(7,0,"score"), r0=lv(14,7,"score"); if(r1!=null && r0!=null && r1>=r0+3) items.push(`<b>Readiness up ${Math.round(r1-r0)} points</b> on average vs last week`);
   const v1=thisW.reduce((a,d)=>a+volOf(liftEntries(d)),0), v0=lastW.reduce((a,d)=>a+volOf(liftEntries(d)),0);
   if(v0>0 && v1>v0*1.03) items.push(`<b>+${Math.round((v1/v0-1)*100)}% training volume</b> vs last week`);
+  { const R=bwReport(today); if(R && isCut() && R.rate!=null && R.rate<=-0.4 && !(R.str && R.str.pct<=-3)) items.push(`<b>Down ${Math.abs(R.avg*R.rate/100).toFixed(1)} ${U()} this week</b>${R.str?" with your strength "+(R.str.pct>=3?"going up":"holding"):""}`); }
   el.innerHTML=`<div class="card wins"><label class="l" style="color:var(--ok)">This week 💪</label><ul>${(items.length?items:["Showing up is the win. Keep stacking check-ins."]).map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
+}
+
+/* ================= muscles & weekly volume ================= */
+const MUSCLES=[["chest","Chest"],["back","Back"],["shoulders","Shoulders"],["biceps","Biceps"],["triceps","Triceps"],["quads","Quads"],["hams","Hamstrings"],["glutes","Glutes"],["calves","Calves"],["abs","Abs"]];
+const MUS_LABEL=Object.fromEntries(MUSCLES);
+// First match wins. 1 = the muscle the exercise is for; 0.5 = a helper muscle (counts as half a set).
+const MUS_RULES=[
+  [/\bcalf|\bcalves\b/, {calves:1}],
+  [/\b(crunch(es)?|planks?|sit-?ups?|leg raises?|knee raises?|toes to bar|russian twists?|wood ?chops?|pallof|ab wheel|roll-?outs?|dead ?bugs?|hollow|v-?ups?|abs|ab|obliques?|dragon flags?|side bends?)\b/, {abs:1}],
+  [/\b(leg curls?|hamstring curls?|nordic|lying curls?|glute[- ]ham)\b/, {hams:1}],
+  [/\b(glutes?|hip thrusts?|thrusts?|bridges?|abduct(ion|or)s?|donkey kicks?|frog pumps?|pull-?throughs?|swings?)\b/, {glutes:1, hams:0.5}],
+  [/\bcurls?\b/, {biceps:1}],
+  [/\b(close[- ]grip (bench|press|push-?ups?)|jm press|diamond push-?ups?)\b/, {triceps:1, chest:0.5}],
+  [/\bdips?\b/, {triceps:1, chest:0.5, shoulders:0.5}],
+  [/\b(leg extensions?|sissy)\b/, {quads:1}],
+  [/\b(back extensions?|hyperextensions?|reverse hypers?|supermans?)\b/, {back:1, glutes:0.5, hams:0.5}],
+  [/\b(push-?downs?|triceps?|skull ?crushers?|kick-?backs?|french press|extensions?)\b/, {triceps:1}],
+  [/\b(rear delts?|reverse (fly|flye|flyes|flys|pec deck)|face pulls?|pull-?aparts?)\b/, {shoulders:1, back:0.5}],
+  [/\b(lateral|laterals|side raises?|front raises?|y-?raises?|upright rows?|lu raises?|delts?|shoulder fly|shoulder flyes?|shoulder flys|cable y)\b/, {shoulders:1}],
+  [/\b(fly|flye|flyes|flys|pec deck|crossovers?|squeeze press)\b/, {chest:1}],
+  [/\b(shoulder press|overhead press|ohp|military|arnold|push press|landmine press|z press|pike push-?ups?|handstand|halos?)\b|\b(seated|standing) (db |dumbbell |barbell |kb )?press\b/, {shoulders:1, triceps:0.5}],
+  [/\b(romanian|rdls?|stiff[- ]leg(ged)?|good ?mornings?|single[- ]leg deadlifts?)\b/, {hams:1, glutes:0.5}],
+  [/\b(deadlifts?|rack pulls?)\b/, {back:1, glutes:0.5, hams:0.5}],
+  [/\b(squats?|leg press|hack|lunges?|step-?ups?|pistols?|wall sits?)\b/, {quads:1, glutes:0.5}],
+  [/\b(shrugs?)\b/, {back:1}],
+  [/\b(rows?|pull-?ups?|chin-?ups?|pull-?downs?|lat|lats|pullovers?|high pulls?|muscle-?ups?)\b/, {back:1, biceps:0.5}],
+  [/\b(cleans?|snatch(es)?)\b/, {back:0.5, quads:0.5, glutes:0.5}],
+  [/\b(get-?ups?)\b/, {shoulders:0.5, abs:0.5}],
+  [/\b(bench|chest press|push-?ups?|press-?ups?|incline|decline|floor press|svend|press)\b/, {chest:1, triceps:0.5, shoulders:0.5}]
+];
+const _musMemo=new Map();
+function musclesOf(name){
+  const n=String(name||"").toLowerCase(); if(_musMemo.has(n)) return _musMemo.get(n);
+  const hit=MUS_RULES.find(([re])=>re.test(n)); const m=hit?hit[1]:{}; _musMemo.set(n,m); return m;
+}
+const musVerb = k => (k==="chest"||k==="back") ? "is" : "are";
+const primaryMus = name => Object.keys(musclesOf(name)).filter(k=>musclesOf(name)[k]>=1);
+// Hard sets per muscle over the 7 days ending on `end`.
+function weekVol(end){
+  const v={}; MUSCLES.forEach(([k])=>v[k]=0);
+  Object.keys(lifts).forEach(d=>{ if(d>shift(end,-7) && d<=end) liftEntries(d).forEach(e=>{ const m=musclesOf(e.name); for(const k in m) v[k]+=m[k]*(e.s||1); }); });
+  return v;
+}
+function volReport(end){
+  end=end||localDate(new Date());
+  const cur=weekVol(end), wins=[1,2,3,4].map(k=>weekVol(shift(end,-7*k))).filter(w=>Object.values(w).some(x=>x>0));
+  const usual={}; MUSCLES.forEach(([k])=>usual[k]= wins.length>=2 ? wins.reduce((a,w)=>a+w[k],0)/wins.length : null);
+  const first=Object.keys(lifts).filter(d=>liftEntries(d).length).sort()[0];
+  const span=first ? dayDiff(first,end) : 0;
+  const behind=MUSCLES.map(([k])=>k).filter(k=>usual[k]!=null && usual[k]>=4 && cur[k]<usual[k]*0.75 && cur[k]<10);
+  return {cur, usual, behind, hasBase: wins.length>=2, span};
+}
+function renderMuscleCard(){
+  const el=document.getElementById("muscleCard"); if(!el) return;
+  const R=volReport(), shown=MUSCLES.filter(([k])=>R.cur[k]>0 || (R.usual[k]||0)>0);
+  if(!shown.length){ el.classList.add("hide"); el.innerHTML=""; return; }
+  el.classList.remove("hide");
+  const max=Math.max(22, ...shown.map(([k])=>Math.max(R.cur[k], R.usual[k]||0)))*1.05;
+  const pct=v=>Math.min(100, v/max*100);
+  const fmt=v=>Number.isInteger(v)?v:v.toFixed(1);
+  const none=MUSCLES.filter(([k])=>!shown.some(x=>x[0]===k)).map(x=>x[1]);
+  el.innerHTML=`<label class="l">Sets per muscle · last 7 days</label>
+    ${shown.map(([k,l])=>{ const b=R.behind.includes(k), u=R.usual[k];
+      return `<div class="mv ${b?"behind":""}"><div class="nm">${l}${b?"<small>behind</small>":""}</div>
+        <div class="bar"><span class="zone" style="left:${pct(10)}%;width:${pct(20)-pct(10)}%"></span><i style="width:${pct(R.cur[k])}%"></i>${u!=null?`<u style="left:${pct(u)}%" title="your usual"></u>`:""}</div><b>${fmt(R.cur[k])}</b></div>`; }).join("")}
+    ${R.behind.length?`<div class="bwnote" style="color:var(--hyper)">${R.behind.map(k=>MUS_LABEL[k]).join(", ")} ${R.behind.length===1?musVerb(R.behind[0]):"are"} behind your usual. Pick <b>More exercises</b> after a session that trains ${R.behind.length===1&&musVerb(R.behind[0])==="is"?"it":"them"}, and the app adds an exercise for ${R.behind.length===1&&musVerb(R.behind[0])==="is"?"it":"them"}.</div>`:""}
+    ${none.length?`<div class="hint" style="margin-top:6px">Not trained this week: ${none.join(", ")}</div>`:""}
+    <div class="hint">Green zone: 10–20 sets a week, the range most research finds works well for growth. Grey tick: your usual week${R.hasBase?"":" (shows after 2 weeks of logging)"}. Helper muscles count half: bench is 1 set of chest plus ½ triceps and ½ shoulders.</div>`;
+}
+// What to pick under "Next time?" for this session.
+function fbSuggest(date){
+  const es=liftEntries(date); if(!es.length) return null;
+  const f=feedback[date]||{}, R=volReport(date);
+  const worked=new Set(es.flatMap(e=>primaryMus(e.name)));
+  const lag=R.behind.filter(k=>worked.has(k)).sort((a,b)=>R.cur[a]/R.usual[a]-R.cur[b]/R.usual[b])[0];
+  const fmt=v=>Math.round(v);
+  if(lag) return {vol:"moreEx", mus:lag, why:`${MUS_LABEL[lag]} ${musVerb(lag)} at ${fmt(R.cur[lag])} sets this week vs your usual ${fmt(R.usual[lag])}. One more ${({shoulders:'shoulder',quads:'quad',hams:'hamstring',glutes:'glute',calves:'calf',abs:'ab'})[lag]||MUS_LABEL[lag].toLowerCase()} exercise fixes that.`};
+  if(f.feel==="easy") return {vol:"more", why:"Every muscle you trained is on track, and it felt easy. Add sets to what you already do."};
+  if(f.feel==="much") return {vol:"less", why:"It felt like too much. Trim a set and recover better."};
+  return null;
+}
+function exForMuscle(mus, have, pool){
+  const low=new Set(have.map(normEx));
+  const fits=n=>musclesOf(n)[mus]>=1 && !low.has(normEx(n));
+  return (pool||[]).find(fits) || Object.keys(EX).filter(n=>hasEq(n) && EX[n].eq.length).find(fits) || Object.keys(EX).filter(hasEq).find(fits) || null;
+}
+
+/* ================= deload weeks ================= */
+function dlState(){ const d=prefs.deload; return d && typeof d==="object" ? d : {}; }
+function dlStarts(){ const d=dlState(); return Array.isArray(d.starts) ? d.starts : []; }
+function dlEnd(start){ const e=(dlState().ends||{})[start]; return e || shift(start,7); }
+function deloadOf(date){ const s=dlStarts().find(s=>date>=s && date<dlEnd(s)); return s ? {start:s, day:dayDiff(s,date)+1, end:dlEnd(s)} : null; }
+const deloadOn = date => !!deloadOf(date);
+function hardWeeks(today){
+  const lastStart=dlStarts().filter(s=>s<=today).sort().pop();
+  const perWeek={}; Object.keys(lifts).forEach(d=>{ if(liftEntries(d).length && (!lastStart || d>=dlEnd(lastStart))) { const k=weekKey(d); perWeek[k]=(perWeek[k]||0)+1; } });
+  let wk=weekKey(today); if(!(perWeek[wk]>=3)) wk=shift(wk,-7);
+  let n=0; while(perWeek[wk]>=3){ n++; wk=shift(wk,-7); }
+  return n;
+}
+function readinessSlide(today){
+  const sc=d=>logs[d] && typeof logs[d].score==="number" ? logs[d].score : null;
+  const range=(a,b)=>Object.keys(logs).filter(d=>d>shift(today,-a) && d<=shift(today,-b)).map(sc).filter(x=>x!=null);
+  const r7=range(7,0), r28=range(28,7);
+  if(r7.length<4 || r28.length<6) return 0;
+  const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+  return avg(r28)-avg(r7);
+}
+function deloadSuggestion(today){
+  if(deloadOn(today)) return null;
+  const st=dlState(); if(st.snooze && st.snooze>today) return null;
+  const last=dlStarts().filter(s=>s<=today).sort().pop(); if(last && dayDiff(last,today)<28) return null;
+  const hw=hardWeeks(today), slide=readinessSlide(today);
+  if(hw>=5) return {why:`You've trained hard for ${hw} weeks straight. A lighter week lets your body catch up, and most lifters come back stronger.`};
+  if(hw>=3 && slide>=8) return {why:`Your readiness has slid about ${Math.round(slide)} points below your usual this week, after ${hw} hard weeks. A lighter week usually turns that around.`};
+  return null;
+}
+function saveDeload(d){ prefs={...prefs, deload:d}; store(KEYS.prefs, prefs); }
+function startDeload(){
+  const today=localDate(new Date()), d=dlState();
+  saveDeload({...d, starts:[...dlStarts().filter(s=>s!==today), today].sort(), snooze:null});
+  toast(`Deload week started. Back to normal on ${nice(shift(today,7))}`); rerenderView();
+}
+function endDeload(){
+  const today=localDate(new Date()), cur=deloadOf(today); if(!cur) return;
+  const d=dlState();
+  if(cur.start===today) saveDeload({...d, starts:dlStarts().filter(s=>s!==today), snooze:shift(today,7)});
+  else saveDeload({...d, ends:{...(d.ends||{}), [cur.start]:today}});
+  toast("Deload ended. Back to your normal plan"); rerenderView();
+}
+function snoozeDeload(){ saveDeload({...dlState(), snooze:shift(localDate(new Date()),7)}); toast("OK. I'll check again in a week"); rerenderView(); }
+function renderDeloadCard(){
+  const el=document.getElementById("deloadCard"); if(!el) return;
+  const today=localDate(new Date());
+  if(!profile || form.date!==today){ el.innerHTML=""; return; }
+  const cur=deloadOf(today);
+  if(cur){ el.innerHTML=`<div class="card dl"><label class="l" style="color:var(--rest)">🔋 Deload week · day ${cur.day} of ${dayDiff(cur.start,cur.end)}</label>
+      <div class="bwnote" style="margin-top:4px">Today's plan has about <b>60% of your usual sets at the same weights</b>. Leave 3+ reps in the tank on every set. Back to normal on ${nice(cur.end)}.</div>
+      <button class="linkbtn" onclick="endDeload()">End deload early</button></div>`; return; }
+  const sg=deloadSuggestion(today);
+  el.innerHTML = sg ? `<div class="card dl"><label class="l" style="color:var(--rest)">🔋 Time for a deload week?</label>
+      <div class="bwnote" style="margin-top:4px">${esc(sg.why)} For 7 days you'd do about 60% of your usual sets at the same weights.</div>
+      <div class="row2"><button class="btn" style="flex:2" onclick="startDeload()">Start deload week</button><button class="btn ghost" style="flex:1" onclick="snoozeDeload()">Not now</button></div></div>` : "";
+}
+function renderDeloadSettings(){
+  const el=document.getElementById("deloadSet"); if(!el) return;
+  const today=localDate(new Date()), cur=deloadOf(today), past=dlStarts().filter(s=>s<=today).sort();
+  el.innerHTML=`<p class="muted" style="font-size:13.5px;margin:0 0 10px">A lighter week: about 60% of your usual sets at the same weights. The app suggests one after about 5 hard weeks, or when your readiness keeps sliding.</p>
+    ${cur ? `<div class="bwnote" style="margin:0 0 8px">On a deload now: day ${cur.day}, back to normal on ${nice(cur.end)}.</div><button class="btn ghost" style="height:46px;margin:0" onclick="endDeload()">End deload early</button>`
+          : `<button class="btn ghost" style="height:46px;margin:0" onclick="startDeload()">Start a deload week now</button>`}
+    <div class="hint">${past.length ? `Last deload: ${nice(past[past.length-1])}. ` : ""}Hard weeks in a row right now: ${hardWeeks(today)}.</div>`;
+}
+
+/* ================= body weight & cut tracker ================= */
+function bwEntries(){ return Object.keys(logs).filter(d=>typeof logs[d].bw==="number" && logs[d].bw>0).sort().map(d=>({date:d, w:logs[d].bw})); }
+function bwAvg(end, E){ const xs=(E||bwEntries()).filter(e=>e.date>shift(end,-7) && e.date<=end); return xs.length ? xs.reduce((a,e)=>a+e.w,0)/xs.length : null; }
+// Main lifts' estimated max now (last 14 days) vs 2–6 weeks ago.
+function strengthTrend(today){
+  const recent=Object.keys(lifts).filter(d=>d>shift(today,-42) && d<=today && liftEntries(d).length);
+  const freq=new Map(); recent.forEach(d=>new Set(liftEntries(d).filter(e=>e.w>0).map(e=>canonName(e.name))).forEach(n=>freq.set(n,(freq.get(n)||0)+1)));
+  const main=[...freq.entries()].filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n])=>n);
+  const ch=main.map(n=>{ const ss=sessions(n), now=ss.filter(x=>x.date>shift(today,-14) && x.date<=today), then=ss.filter(x=>x.date>shift(today,-42) && x.date<=shift(today,-14));
+    if(!now.length || !then.length) return null; const a=Math.max(...then.map(x=>x.best)), b=Math.max(...now.map(x=>x.best)); return a>0 ? (b-a)/a*100 : null; }).filter(x=>x!=null);
+  if(ch.length<2) return null;
+  return {pct: ch.reduce((x,y)=>x+y,0)/ch.length, n:ch.length};
+}
+function bwReport(today){
+  today=today||localDate(new Date());
+  const E=bwEntries(); if(!E.length) return null;
+  const avg=bwAvg(today,E) ?? E[E.length-1].w, first=E[0];
+  let rate=null;   // % body weight per week, negative = losing
+  for(const back of [14,10,7]){ const then=bwAvg(shift(today,-back),E); const span=dayDiff(first.date,today);
+    if(then && span>=back){ rate=(avg-then)/then*100/(back/7); break; } }
+  const startAvg=bwAvg(shift(first.date,6),E.filter(e=>e.date<=shift(first.date,6)));
+  return {E, avg, last:E[E.length-1], rate, since:first.date, change: avg-startAvg, str: strengthTrend(today)};
+}
+function bwAdvice(R){
+  if(!R || R.rate==null) return null;
+  const r=R.rate, loss=-r, s=R.str, u=U(), wk=Math.abs(R.avg*r/100).toFixed(1);
+  const strTxt = s ? (s.pct>=3 ? `your main lifts are up ${s.pct.toFixed(0)}%` : s.pct>-3 ? "your strength is holding" : `your main lifts are down ${Math.abs(s.pct).toFixed(0)}%`) : null;
+  if(isCut()){
+    if(loss>1 && s && s.pct<=-3) return {tone:"warn", t:`You're losing ${loss.toFixed(1)}% a week (${wk} ${u}) and ${strTxt}. That's faster than lifters usually want. Try adding about 150–250 calories a day, mostly carbs around training, to protect your strength and muscle.`};
+    if(loss>1) return {tone:"ok", t:`Fast pace: ${loss.toFixed(1)}% a week (${wk} ${u}).${strTxt?` Nice, ${strTxt}.`:""} The usual target is 0.5–1% a week. If your lifts start dropping, eat a little more.`};
+    if(loss>=0.5) return {tone:"good", t:`Right on pace for a cut: ${loss.toFixed(1)}% a week (${wk} ${u}).${strTxt?` And ${strTxt} 💪`:""}`};
+    if(loss>=0.2) return {tone:"ok", t:`Losing slowly: ${loss.toFixed(1)}% a week (${wk} ${u}).${strTxt?` ${strTxt[0].toUpperCase()+strTxt.slice(1)}.`:""} For a faster cut, trim about 150–250 calories a day or add some daily steps.`};
+    return {tone:"ok", t:`Your 7-day average is about flat (${r>=0?"+":""}${r.toFixed(1)}% a week). To keep cutting, trim about 200 calories a day or add some daily steps.`};
+  }
+  if(profile.goal==="bulk"){
+    if(r>0.6) return {tone:"ok", t:`Gaining ${r.toFixed(1)}% a week. Most lean gaining aims for 0.25–0.5%, so you could trim a little and gain less fat.`};
+    if(r>=0.2) return {tone:"good", t:`Gaining ${r.toFixed(1)}% a week, right in the lean-gain range.${strTxt?` And ${strTxt} 💪`:""}`};
+    return {tone:"ok", t:`Weight is about flat (${r>=0?"+":""}${r.toFixed(1)}% a week). To gain, add about 200 calories a day.`};
+  }
+  return {tone: Math.abs(r)<=0.3 ? "good" : "ok", t: Math.abs(r)<=0.3 ? `Holding steady (${r>=0?"+":""}${r.toFixed(1)}% a week). Right where maintenance should be.` : `Your weight is moving ${r>0?"up":"down"} ${Math.abs(r).toFixed(1)}% a week. For maintenance, adjust intake by about 150–200 calories a day.`};
+}
+function bwChart(E){
+  const pts=E.slice(-45).map(e=>({date:e.date, v:e.w, a:bwAvg(e.date,E)}));
+  if(pts.length<2) return `<div class="hint" style="margin-top:10px">Weigh in on a few more mornings to see your trend line.</div>`;
+  const W=320,H=130,P={l:38,r:8,t:10,b:20};
+  const all=pts.flatMap(p=>[p.v,p.a]); let lo=Math.min(...all), hi=Math.max(...all); if(hi-lo<4){ const m=(hi+lo)/2; lo=m-2; hi=m+2; }
+  const pad=(hi-lo)*0.12; lo-=pad; hi+=pad;
+  const t0=new Date(pts[0].date).getTime(), t1=new Date(pts[pts.length-1].date).getTime();
+  const x=p=>P.l+(W-P.l-P.r)*((new Date(p.date).getTime()-t0)/Math.max(1,t1-t0));
+  const y=v=>P.t+(H-P.t-P.b)*(1-(v-lo)/(hi-lo));
+  const grid=[hi-pad,(hi+lo)/2,lo+pad].map(v=>`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="#2a2e33"/><text x="${P.l-6}" y="${y(v)+4}" fill="#6b727a" font-size="10" text-anchor="end" font-family="Inter">${v.toFixed(1)}</text>`).join("");
+  const dots=pts.map(p=>`<circle cx="${x(p).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="2.5" fill="#5c636b"><title>${p.date}: ${p.v}</title></circle>`).join("");
+  const line=pts.map(p=>`${x(p).toFixed(1)},${y(p.a).toFixed(1)}`).join(" ");
+  const lbl=(p,a)=>`<text x="${x(p)}" y="${H-5}" fill="#6b727a" font-size="10" text-anchor="${a}" font-family="Inter">${nice(p.date).split(", ").slice(1).join(" ")}</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="body weight trend">${grid}${dots}<polyline points="${line}" fill="none" stroke="#f2a541" stroke-width="2.2" stroke-linejoin="round"/>${lbl(pts[0],"start")}${lbl(pts[pts.length-1],"end")}</svg>
+    <div class="hint" style="margin-top:2px">Dots: daily weigh-ins. Orange line: 7-day average, which smooths out water and salt swings.</div>`;
+}
+function renderBwCard(){
+  const el=document.getElementById("bwCard"); if(!el) return;
+  const R=bwReport(), u=U();
+  if(!R){ el.innerHTML=`<label class="l">Body weight</label><div class="hint" style="margin-top:0">Add a morning weigh-in on Today to track your 7-day average${isCut()?" and see how your cut is going":""}.</div>`; return; }
+  const A=bwAdvice(R), col={warn:"#e8b04a", good:"var(--ok)", ok:"#d6d9dd"};
+  const chg=R.change, days=dayDiff(R.since, localDate(new Date()));
+  const win = isCut() && chg<=-0.5 && R.str && R.str.pct>-3 && days>=14 ? `<div class="bwnote" style="color:var(--ok)">💪 Down ${Math.abs(chg).toFixed(1)} ${u} since ${nice(R.since)} and ${R.str.pct>=3?"your main lifts are up "+R.str.pct.toFixed(0)+"%":"your strength has held"}. That's a cut done right.</div>` : "";
+  el.innerHTML=`<label class="l">Body weight</label>
+    <div class="stats" style="margin:4px 0 0">
+      <div class="stat"><div class="k">7-day avg</div><div class="v">${R.avg.toFixed(1)}<small> ${u}</small></div></div>
+      <div class="stat"><div class="k">Per week</div><div class="v">${R.rate==null?"–":(R.rate>0?"+":"")+(R.avg*R.rate/100).toFixed(1)}<small>${R.rate==null?"":" "+u}</small></div></div>
+      <div class="stat"><div class="k">Since start</div><div class="v">${days>=7?(chg>0?"+":"")+chg.toFixed(1):"–"}<small>${days>=7?" "+u:""}</small></div></div></div>
+    ${bwChart(R.E)}
+    ${A?`<div class="bwnote" style="color:${col[A.tone]}">${esc(A.t)}</div>`:`<div class="hint">The weekly rate shows after about a week of weigh-ins.</div>`}${win}`;
+}
+function bumpBw(d){
+  const el=document.getElementById("bwIn"); let v=parseFloat(el.value);
+  if(!(v>0)){ const R=bwEntries(); v = R.length ? R[R.length-1].w : (Number(profile && profile.bw)||(U()==="kg"?80:180)); d=0; }
+  el.value=(Math.round((v+d*0.2)*10)/10).toFixed(1); form.bw=Number(el.value); dirty=true;
 }
 
 /* ================= how-it-works guide ================= */
@@ -1703,17 +2057,17 @@ function guideSteps(returning){ const u=U(); return [
    body: returning ? "You've been using Today's Call. Here's a rundown of everything it does now, including the newer features. Skip anytime, and you can replay it from ⚙ Settings."
                    : "Every morning the app makes one call for your training: <b>Rest</b>, <b>Hypertrophy</b> or <b>Heavy compound</b>. Then it builds your workout. Here's how to get the most out of it."},
   {icon:"☀️", title:"Check in each morning", where:"Today tab",
-   body:"Log last night's sleep, sleep quality, energy and soreness. It takes about 20 seconds.<ul><li>You get a <b>readiness score (0–100)</b> and today's call.</li><li>It learns <b>your</b> normal: your real sleep need and your usual energy. The more days you check in, the more personal it gets.</li><li>Tap <b>Why this call</b> to see what drove it.</li></ul>"},
+   body:"Log last night's sleep, sleep quality, energy and soreness. It takes about 20 seconds.<ul><li>You get a <b>readiness score (0–100)</b> and today's call.</li><li>It learns <b>your</b> normal: your real sleep need and your usual energy. The more days you check in, the more personal it gets.</li><li>Tap <b>Why this call</b> to see what drove it.</li><li>Add a <b>morning weigh-in</b> if you like. It tracks your 7-day average.</li></ul>"},
   {icon:"📋", title:"Follow today's plan", where:"Today tab",
-   body:"Your workout comes with suggested weights.<ul><li>Tap <b>›</b> on an exercise to log it.</li><li>Did something different? Log it under your own name and the plan still gets its ✓.</li><li><b>⇄ Swap</b> finds alternatives for the equipment you have. <b>▶ How to</b> opens form videos.</li><li>After you've logged a split day once, the next plan is built from what you <b>actually did</b>.</li></ul>"},
+   body:"Your workout comes with suggested weights.<ul><li>Tap <b>›</b> on an exercise to log it.</li><li>Did something different? Log it under your own name and the plan still gets its ✓.</li><li><b>⇄ Swap</b> finds alternatives for the equipment you have. <b>▶ How to</b> opens form videos.</li><li>After you've logged a split day once, the next plan is built from what you <b>actually did</b>.</li><li>After a few hard weeks it may suggest a <b>deload week</b>: fewer sets, same weights.</li></ul>"},
   {icon:"🏋️", title:"Log your sets", where:"Lifts tab",
-   body:`Enter weight (${u}), reps and sets, then <b>Add set</b>. Everything saves automatically.<ul><li>Tap a logged set to edit it. Use <b>×</b> or <b>🗑</b> to delete, with Undo if you slip.</li><li>Tap <b>Save workout</b> at the bottom when you're done.</li><li>Your wins (PRs, heavier weights, more reps) show as you go.</li></ul>`},
+   body:`Enter weight (${u}), reps and sets, then <b>Add set</b>. Everything saves automatically.<ul><li>Tap a logged set to edit it. Use <b>×</b> or <b>🗑</b> to delete, with Undo if you slip.</li><li>The <b>rest timer</b> starts by itself after each set (turn it off on the ⏱ tab).</li><li>Tap <b>Save workout</b> at the bottom when you're done.</li><li>Your wins (PRs, heavier weights, more reps) show as you go.</li></ul>`},
   {icon:"💬", title:"Tell it how it went", where:"After your workout",
-   body:"A quick card asks how the session felt and what you want next time: <b>more or fewer sets</b>, or <b>more or fewer exercises</b>.<ul><li>Your next session of that split day adjusts to match.</li><li>Not sure which to pick? The card's <b>Which one?</b> guide explains.</li></ul>"},
+   body:"A quick card asks how the session felt and what you want next time: <b>more or fewer sets</b>, or <b>more or fewer exercises</b>.<ul><li>Your next session of that split day adjusts to match.</li><li>It suggests a pick for you. If a muscle is behind for the week, it says <b>More exercises</b> and adds one for that muscle.</li></ul>"},
   {icon:"⏱", title:"Timer & fuel", where:"⏱ tab · Today tab",
    body:"<ul><li>The workout timer starts on its own with your first set, and the ⏱ tab shows the time while it runs.</li><li>There's a rest timer with a beep for between sets.</li><li><b>Fuel timing</b> on Today shows when to eat around your lift time.</li></ul>"},
   {icon:"🏅", title:"Watch yourself progress", where:"History tab",
-   body:"<ul><li><b>This week</b> shows your improvements.</li><li><b>Badges</b> go from your first workout to plate milestones, and all-time ones from an elephant 🐘 to the Eiffel Tower 🗼.</li><li><b>Progress</b> shows any lift or split day, split by heavy vs hypertrophy days.</li></ul>"},
+   body:"<ul><li><b>This week</b> shows your improvements.</li><li><b>Badges</b> go from your first workout to plate milestones, and all-time ones from an elephant 🐘 to the Eiffel Tower 🗼.</li><li><b>Sets per muscle</b> shows your weekly volume and flags anything falling behind.</li><li><b>Body weight</b> shows your trend and, on a cut, whether your pace is right.</li><li><b>Progress</b> shows any lift or split day, split by heavy vs hypertrophy days.</li></ul>"},
   {icon:"💾", title:"Back it up", where:"⚙ Settings",
    body:"Your data stays only on this phone. There's no account and nothing is uploaded.<ul><li>Tap <b>Save backup</b> now and then. That file is how you move to a new phone.</li><li>Add the app to your home screen so it opens like a normal app.</li><li>You can replay this guide anytime in Settings.</li></ul>"}
 ]; }
@@ -1902,7 +2256,7 @@ function fbFor(date, split){ const f=date && feedback[date]; return f && (!f.spl
 function fbNote(fb, call, N, half, added){
   if(!fb) return "";
   const feel=(FEEL.find(x=>x[0]===fb.feel)||[])[1], parts=[];
-  if(fb.vol==="moreEx") parts.push(added ? `added ${added}` : "no extra exercise to add");
+  if(fb.vol==="moreEx") parts.push(added ? `added ${added}${fb.mus && MUS_LABEL[fb.mus] ? " for "+MUS_LABEL[fb.mus].toLowerCase() : ""}` : "no extra exercise to add");
   if(fb.vol==="lessEx") parts.push("dropped your last exercise (it's under ⇄ Swap)");
   if(call==="comp"){
     if(fb.vol==="more") parts.push("+1 set on your 2 main lifts");
@@ -1935,13 +2289,14 @@ function renderFeedback(id, date){
   const entries=liftEntries(date);
   if(!entries.length){ el.innerHTML=""; return; }
   const split=(lifts[date] && !Array.isArray(lifts[date]) && lifts[date].split) || splitFor(date);
-  const f=feedback[date]||{};
-  const btns=(list,key)=>list.map(([v,l])=>`<button type="button" class="${f[key]===v?"on":""}" onclick="setFb('${date}','${key}','${v}')">${l}</button>`).join("");
+  const f=feedback[date]||{}, sg=fbSuggest(date);
+  const btns=(list,key)=>list.map(([v,l])=>`<button type="button" class="${f[key]===v?"on":""} ${key==="vol"&&sg&&sg.vol===v&&f.vol!==v?"sug":""}" onclick="setFb('${date}','${key}','${v}')">${l}</button>`).join("");
   el.innerHTML=`<div class="card fb">
     ${timeLine(date)}
     <label class="l">How was today's ${esc(split)}?</label>
     <div class="seg2 fb4">${btns(FEEL,"feel")}</div>
     <label class="l" style="margin-top:14px">Next time?</label>
+    ${sg?`<div class="sugl">💡 Suggested: <b>${VOL.find(x=>x[0]===sg.vol)[1]}</b>. ${esc(sg.why)}</div>`:""}
     <div class="seg2 fbv">${btns(VOL,"vol")}</div>
     <details class="which"><summary>Which one?</summary><ul>
       <li><b>More sets:</b> the muscles you worked still had more in them. You were done before you were tired.</li>
@@ -1956,6 +2311,7 @@ function setFb(date, key, v){
   const split=(lifts[date] && !Array.isArray(lifts[date]) && lifts[date].split) || splitFor(date);
   const f={...(feedback[date]||{}), split};
   f[key] = f[key]===v ? undefined : v;
+  if(key==="vol"){ delete f.mus; if(f.vol==="moreEx"){ const sg=fbSuggest(date); if(sg && sg.mus) f.mus=sg.mus; } }
   if(!f.feel && !f.vol){ const n={...feedback}; delete n[date]; if(store(KEYS.fb,n)) feedback=n; }
   else { const n={...feedback, [date]:f}; if(store(KEYS.fb,n)) feedback=n; }
   if(view==="today") renderCall(); else renderLifts();
@@ -1980,7 +2336,7 @@ function renderPlan(a){
   el.innerHTML=`<div class="card plan">
     <label class="l">${a.call==="rest"?"Light session":call==="comp"?"Heavy session":"Hypertrophy session"} · ${esc(a.split)}</label>
     ${timeLine(form.date)}
-    <div class="src">${src}</div>${plan.fbNote?`<div class="src" style="color:var(--hyper);margin-top:-4px">${esc(plan.fbNote)}</div>`:""}
+    <div class="src">${src}</div>${plan.deload?`<div class="src" style="color:var(--rest);margin-top:-4px">🔋 Deload week, day ${plan.deload.day}: about 60% of your usual sets, same weights.</div>`:""}${plan.fbNote?`<div class="src" style="color:var(--hyper);margin-top:-4px">${esc(plan.fbNote)}</div>`:""}
     ${plan.items.map((it,i)=>{
       const inPlan=new Set(plan.items.map(x=>x.name.toLowerCase()));
       const mineAlts=(plan.pool||[]).filter(a=>!inPlan.has(a.toLowerCase())).slice(0,4);
@@ -2102,6 +2458,7 @@ function savePrefs(){ clearTimeout(prefTimer); prefTimer=setTimeout(()=>{ store(
 function bumpFuel(id,d){ const el=document.getElementById(id); el.value=Math.max(20,Math.min(240,(Number(el.value)||75)+d)); el.dispatchEvent(new Event("input")); }
 document.getElementById("ftime").addEventListener("input",e=>{ prefs.liftTime=e.target.value; renderFuel(lastAssess); savePrefs(); });
 document.getElementById("fdur").addEventListener("input",e=>{ const v=Number(e.target.value); if(v>0){ prefs.dur=v; renderFuel(lastAssess); savePrefs(); } });
+document.getElementById("bwIn").addEventListener("input",e=>{ const v=parseFloat(e.target.value); form.bw = v>0 ? v : null; dirty=true; });
 document.getElementById("fbw").addEventListener("input",e=>{ const v=e.target.value.trim(); if(profile){ profile.bw = v==="" ? "" : Number(v); } renderFuel(lastAssess); savePrefs(); });
 
 /* ================= LIFT entry ================= */
@@ -2144,6 +2501,7 @@ function addSet(){
     if(weight>pt.w && pt.w>0) msg=`Up ${fmtW(Math.round((weight-pt.w)*10)/10)} ${U()} from last time on ${name} 💪`;
     else if(weight===pt.w && r>pt.r) msg=`${r-pt.r} more rep${r-pt.r===1?"":"s"} than last time on ${name} 👊`; }
   writeLifts(liftDate, [...liftEntries(liftDate), entry], looksOff ? null : msg);
+  if(prefs.autoRest!==false && liftDate===localDate(new Date())) startRest(restFor(name));
   if(looksOff) toastAction(`${fmtW(weight)} ${U()} is way above your usual ${fmtW(usualMax)}. Typo?`, "Fix", ()=>editSet(entry.id));
 }
 let editId=null;
@@ -2201,6 +2559,7 @@ function uniqueName(base, list, skip){
   let n=base, i=2; while(list.some((d,j)=>j!==skip && d.name.toLowerCase()===n.toLowerCase())){ n=base+" "+i; i++; } return n;
 }
 function renderSplitEditor(prefix){
+  renderSplitSuggest(prefix);
   const pre=document.getElementById(prefix+"Presets");
   pre.innerHTML=PRESETS.map((p,i)=>`<button type="button" data-i="${i}">${esc(p.name)}</button>`).join("");
   pre.querySelectorAll("button").forEach(b=>b.onclick=()=>{
@@ -2267,6 +2626,7 @@ function finishSetup(){
   openGuide(false, "You're set. Do your first check-in ☀️");
 }
 function renderSettings(){
+  renderDeloadSettings();
   if(!draft) draft={units:profile.units, goal:profile.goal, split:profile.split.map(d=>({...d}))};
   segButtons(document.getElementById("stUnits"), [["lb","Pounds (lb)"],["kg","Kilograms (kg)"]], profile.units, v=>changeUnits(v));
   segButtons(document.getElementById("stGoal"), Object.entries(GOALS).map(([k,g])=>[k,g.label]), profile.goal, v=>{ profile.goal=v; store(KEYS.profile,profile); renderSettings(); toast("Goal updated"); });
@@ -2295,6 +2655,7 @@ function changeUnits(v){
   const next={}; Object.keys(lifts).forEach(d=>{ const es=liftEntries(d).map(e=>({...e, w: e.w>0 ? rnd(e.w) : 0})); const v0=lifts[d]; next[d]={split:(v0&&v0.split)||null, entries:es}; });
   if(!store(KEYS.lifts,next)) return;
   lifts=next;
+  { const L={...logs}; let ch=false; Object.keys(L).forEach(d=>{ if(typeof L[d].bw==="number"){ L[d]={...L[d], bw:Math.round(L[d].bw*f*10)/10}; ch=true; } }); if(ch && store(KEYS.logs,L)){ logs=L; form=fromLog(form.date); } }
   if(Number(profile.bw)>0) profile.bw=Math.round(Number(profile.bw)*f*10)/10;
   profile.units=v; store(KEYS.profile,profile);
   applyUnits(); syncFuelInputs(); renderSettings(); toast("Switched to "+v);
@@ -2368,10 +2729,10 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const d=JSON.parse(await f.text());
     if(!d || d.app!=="todays-call" || typeof d.logs!=="object" || typeof d.lifts!=="object") throw 0;
     const okDate=k=>/^\d{4}-\d{2}-\d{2}$/.test(k);
-    const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object") L[k]=d.logs[k]; });
+    const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object"){ L[k]={...d.logs[k]}; if(!(typeof L[k].bw==="number" && L[k].bw>0 && L[k].bw<1000)) delete L[k].bw; } });
     const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1}; if(typeof e.forPlan==="string") o.forPlan=e.forPlan.slice(0,60); if(typeof e.t==="number") o.t=e.t; return o; }); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
     const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false} : profile;
-    const FB={}; if(d.feedback && typeof d.feedback==="object") Object.keys(d.feedback).filter(okDate).forEach(k=>{ const f=d.feedback[k]; if(f && typeof f==="object"){ const o={}; if(FEEL.some(x=>x[0]===f.feel)) o.feel=f.feel; if(VOL.some(x=>x[0]===f.vol)) o.vol=f.vol; if(typeof f.split==="string") o.split=f.split.slice(0,30); if(o.feel||o.vol) FB[k]=o; } });
+    const FB={}; if(d.feedback && typeof d.feedback==="object") Object.keys(d.feedback).filter(okDate).forEach(k=>{ const f=d.feedback[k]; if(f && typeof f==="object"){ const o={}; if(FEEL.some(x=>x[0]===f.feel)) o.feel=f.feel; if(VOL.some(x=>x[0]===f.vol)) o.vol=f.vol; if(typeof f.split==="string") o.split=f.split.slice(0,30); if(o.vol==="moreEx" && MUS_LABEL[f.mus]) o.mus=f.mus; if(o.feel||o.vol) FB[k]=o; } });
     const SS={}; if(d.sessions && typeof d.sessions==="object") Object.keys(d.sessions).filter(okDate).forEach(k=>{ const v=d.sessions[k]; if(v && typeof v.start==="number"){ SS[k]={start:v.start}; if(typeof v.end==="number" && v.end>v.start) SS[k].end=v.end; else SS[k].end=v.start+60*60e3; } });
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X) || !store(KEYS.fb,FB) || !store(KEYS.sess,SS)) return;
     logs=L; lifts=X; feedback=FB; sessT=SS; syncTimerBar();
@@ -2379,7 +2740,11 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     if(P){ profile=P; store(KEYS.profile,profile); }
     checkBadges();   // badges already earned in restored data are added quietly
     maybeGuide(true);
-    if(d.prefs && typeof d.prefs==="object"){ prefs={liftTime:d.prefs.liftTime||prefs.liftTime, dur:Number(d.prefs.dur)||prefs.dur}; store(KEYS.prefs,prefs); }
+    if(d.prefs && typeof d.prefs==="object"){
+      prefs={liftTime:d.prefs.liftTime||prefs.liftTime, dur:Number(d.prefs.dur)||prefs.dur};
+      if(typeof d.prefs.autoRest==="boolean") prefs.autoRest=d.prefs.autoRest;
+      const dl=d.prefs.deload; if(dl && typeof dl==="object"){ const o={}; if(Array.isArray(dl.starts)) o.starts=dl.starts.filter(x=>okDate(String(x))).slice(-100); if(dl.ends && typeof dl.ends==="object"){ o.ends={}; Object.keys(dl.ends).forEach(k=>{ if(okDate(k) && okDate(String(dl.ends[k]))) o.ends[k]=dl.ends[k]; }); } if(okDate(String(dl.snooze||""))) o.snooze=dl.snooze; prefs.deload=o; }
+      store(KEYS.prefs,prefs); }
     draft=null; applyUnits(); syncFuelInputs(); form=fromLog(form.date);
     { const nl=Object.keys(L).length, nx=Object.keys(X).length; toast(`Restored ${nl} check-in${nl===1?"":"s"} and ${nx} lifting day${nx===1?"":"s"}`); }
     showView(profile?"today":"setup");
@@ -2456,7 +2821,7 @@ form=fromLog(form.date);
 if(!storageOK || (()=>{ try{ localStorage.setItem("tc.test","1"); localStorage.removeItem("tc.test"); return false; }catch(_){ return true; } })())
   banner("This browser is blocking storage (private browsing?). Your entries won't be saved.");
 showView(profile ? "today" : "setup");
-maybeGuide(true); autoStopStale(); syncTimerBar(); checkBadges();
+syncBwProfile(); maybeGuide(true); autoStopStale(); syncTimerBar(); checkBadges();
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible"){ autoStopStale(); syncTimerBar(); renderRest(); } });
 </script>
 </body>
