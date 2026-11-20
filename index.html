@@ -45,7 +45,10 @@
   label.l{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em}
   .field{margin-bottom:16px}
   .field:last-child{margin-bottom:0}
-  input[type=date],input[type=number],input[type=time]{background:var(--panel2);border:1px solid var(--line);color:var(--text);font:600 16px Inter;padding:10px 12px;border-radius:10px;width:100%;color-scheme:dark}
+  input[type=date],input[type=number],input[type=time]{background:var(--panel2);border:1px solid var(--line);color:var(--text);font:600 16px Inter;padding:10px 12px;border-radius:10px;width:100%;color-scheme:dark;box-sizing:border-box;height:48px;min-height:48px;min-width:0;max-width:100%;margin:0}
+  input[type=date],input[type=time]{-webkit-appearance:none;appearance:none;display:block;line-height:24px;text-align:left}
+  input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and-time-value{text-align:left;margin:0}
+  input[type=date]::-webkit-calendar-picker-indicator{opacity:.75;filter:invert(.8)}
   .stepper{display:flex;align-items:center;gap:8px}
   .stepper button{width:52px;height:48px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:700 22px Inter;cursor:pointer}
   .stepper .val{flex:1;text-align:center;font-family:"Barlow Condensed";font-size:34px;font-weight:700}
@@ -134,12 +137,12 @@
   #banner button{background:var(--accent);color:#1a1205;border:0;border-radius:8px;font:700 13px Inter;padding:6px 10px;margin-left:8px;cursor:pointer}
   .hide{display:none!important}
   /* lifts */
-  input[type=text],select{background:var(--panel2);border:1px solid var(--line);color:var(--text);font:600 16px Inter;padding:10px 12px;border-radius:10px;width:100%;color-scheme:dark}
+  input[type=text],select{background:var(--panel2);border:1px solid var(--line);color:var(--text);font:600 16px Inter;padding:10px 12px;border-radius:10px;width:100%;color-scheme:dark;box-sizing:border-box;height:48px;min-height:48px;max-width:100%;margin:0}
   .trio{display:grid;grid-template-columns:1.25fr 1fr .8fr;gap:8px}
   .mini label{display:block;font-size:11px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;text-align:center}
   .mini .box{display:flex;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .mini .box button{width:34px;height:50px;border:0;background:none;color:var(--muted);font:700 20px Inter;cursor:pointer;flex:none}
-  .mini .box input{flex:1;min-width:0;border:0;background:none;text-align:center;font:700 20px "Barlow Condensed",Inter;padding:0;color:var(--text);width:100%;-moz-appearance:textfield}
+  .mini .box input{flex:1;min-width:0;border:0;background:none;text-align:center;font:700 20px "Barlow Condensed",Inter;padding:0;color:var(--text);width:100%;height:50px;min-height:50px;-moz-appearance:textfield}
   .mini .box input::-webkit-outer-spin-button,.mini .box input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .last{font-size:13px;color:var(--muted);margin-top:10px;min-height:18px;line-height:1.45}
   .last b{color:var(--text)}
@@ -182,7 +185,8 @@
   .cyc .ph small{display:block;font-weight:500;font-size:12px;color:var(--muted);margin-top:2px}
   .cyc button{flex:none;border:1px solid #6b2f3d;background:#3a1b23;color:#ffc4cf;font:600 13px Inter;border-radius:999px;padding:8px 11px;cursor:pointer}
   .cycset{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
-  .cycset .two{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .cycset .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:10px;align-items:end}
+  .cycset .two > div{display:flex;flex-direction:column;justify-content:flex-end;min-width:0}
   .cycset .two label,.cycset .lbl{display:block;font-size:11px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 6px}
   .cycset .two label{margin-top:0}
   .starts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
@@ -306,7 +310,7 @@
   .wzstep{font:600 12px Inter;color:var(--faint);margin-top:6px;letter-spacing:.06em;text-transform:uppercase}
   .wzq{font-family:"Barlow Condensed";font-size:28px;font-weight:800;line-height:1.05;margin:2px 0 14px}
   .slide{display:none;animation:gin .25s ease-out}.slide.on{display:block}
-  .wznav{display:flex;gap:8px;margin-top:4px}.wznav .btn{margin:0}
+  .wznav{display:flex;gap:8px;margin-top:4px}.wznav .btn{margin:0;height:54px}.wznav .btn.ghost{flex:0 0 34%;font-size:16px}
   .schq{font:600 13px Inter;color:var(--muted);margin:14px 0 8px}.schq:first-child{margin-top:0}
   .seg2.days button{font-size:17px}
   .rtbtn{width:100%;border:1px dashed #4a5058;background:none;color:var(--text);font:600 14.5px Inter;border-radius:12px;padding:12px;cursor:pointer;margin-bottom:12px}
@@ -758,7 +762,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.25.1";
+const APP_VERSION = "1.25.2";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -3343,7 +3347,15 @@ function renderAboutYou(prefix, obj, onChange){
   if(!c.on) return;
   segButtons(document.getElementById(prefix+"CycHorm"), [["no","No"],["yes","Yes (pill, ring, implant…)"]], c.hormonal?"yes":"no", v=>{ c.hormonal=(v==="yes"); onChange(); });
   const lastIn=document.getElementById(prefix+"CycLast");
-  lastIn.onchange=()=>{ const v=lastIn.value; if(!/^\d{4}-\d{2}-\d{2}$/.test(v)) return; c.starts=c.starts||[]; if(!c.starts.includes(v)){ c.starts.push(v); c.starts.sort(); } onChange(true); };
+  // Editing "Last period started" replaces the date it shows (iPhone pickers fill in today the moment you tap them,
+  // so adding instead of replacing used to stick today's date in).
+  let shown=last;
+  lastIn.onchange=()=>{ const v=lastIn.value; if(!/^\d{4}-\d{2}-\d{2}$/.test(v) || v===shown) return;
+    if(v>localDate(new Date())){ lastIn.value=shown; toast("That date is in the future"); return; }
+    // 18+ days after the date shown = a new period (keep the old one, it teaches your cycle length); closer = a correction.
+    const isNew = shown && v>shown && dayDiff(shown, v)>=18;
+    c.starts=(c.starts||[]).filter(d=>isNew || d!==shown); if(!c.starts.includes(v)) c.starts.push(v); c.starts.sort(); shown=v; onChange(true);
+    toast(isNew ? "New period start logged" : "Period start updated"); };
   const num=(id,lo,hi,key)=>{ const el=document.getElementById(id); el.onchange=()=>{ const v=Math.round(Number(el.value)); if(v>=lo&&v<=hi){ c[key]=v; onChange(true); } else { el.value=c[key]; toast(`Use ${lo}–${hi} days`); } }; };
   num(prefix+"CycLen",21,45,"len"); num(prefix+"CycPlen",2,10,"plen");
   box.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{ c.starts=c.starts.filter(d=>d!==b.dataset.rm); onChange(); });
