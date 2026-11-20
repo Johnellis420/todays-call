@@ -90,6 +90,35 @@
   .chips button.on{background:var(--text);color:var(--bg);border-color:var(--text)}
   .chips button.next{border-color:var(--accent)}
   .hint{font-size:12.5px;color:var(--faint);margin-top:8px}
+  .plates{margin-top:10px;padding:12px;border-radius:14px;background:var(--panel2)}
+  .plates .pg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}
+  .plates .pt{border:1px solid var(--line,#2a2d31);border-radius:12px;padding:6px;text-align:center;background:var(--panel,#16181b)}
+  .plates .pt.on{border-color:var(--accent)}
+  .plates .pt .pw{font-weight:700;font-size:14px}
+  .plates .pt .pc{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+  .plates .pt .pc button{width:36px;height:36px;border-radius:9px;border:0;background:var(--panel2);color:var(--text);font-size:19px}
+  .plates .pt .pc b{font-size:17px}
+  .plates .tot{margin-top:10px;font-size:14px}
+  .plates .bars{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;font-size:12.5px;color:var(--muted)}
+  .plates .bars button{padding:6px 10px;border-radius:999px;border:1px solid var(--line,#2a2d31);background:transparent;color:var(--muted);font-size:12.5px}
+  .plates .bars button.on{border-color:var(--accent);color:var(--accent)}
+  .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-top:8px;text-align:center}
+  .cal .dw{font-size:11px;color:var(--faint);font-weight:600;padding-bottom:2px}
+  .cal .cd{position:relative;height:44px;border-radius:10px;background:transparent;border:0;color:var(--muted);font:500 11px Inter;padding:3px 0 0;cursor:pointer;display:flex;flex-direction:column;align-items:center}
+  .cal .cd .st{font-size:19px;line-height:22px;height:22px}
+  .cal .cd.ci .st{color:var(--accent)}
+  .cal .cd.wo .st{color:var(--accent)}
+  .cal .cd.today{box-shadow:inset 0 0 0 1.5px var(--line,#2a2d31);color:var(--text)}
+  .cal .cd.sel{background:var(--panel2);color:var(--text)}
+  .cal .cd.fut{opacity:.35;cursor:default}
+  .calnav{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+  .calnav button{width:44px;height:40px;border-radius:10px;border:1px solid var(--line,#2a2d31);background:var(--panel2);color:var(--text);font-size:18px}
+  .calnav button:disabled{opacity:.3}
+  .calstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}
+  .calstats div{background:var(--panel2);border-radius:12px;padding:10px 6px;text-align:center}
+  .calstats b{display:block;font-size:22px;font-family:"Barlow Condensed",Inter,sans-serif}
+  .calstats small{color:var(--muted);font-size:11.5px}
+  .linkbtn{background:none;border:0;padding:0;color:var(--accent);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
   .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
   .stat .k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
@@ -546,6 +575,7 @@
       <div class="mini"><label for="sIn">Sets</label>
         <div class="box"><button onclick="bump('sIn',-1)">−</button><input id="sIn" type="number" inputmode="numeric" min="1" max="10" step="1" value="1"><button onclick="bump('sIn',1)">+</button></div></div>
     </div>
+    <div id="plateBox" class="plates hide"></div>
     <div class="last" id="lastTime"></div>
     <button class="btn" style="margin-top:12px" onclick="addSet()">Add set</button>
     <div class="rclock sm" id="rClockL"></div>
@@ -592,6 +622,7 @@
 <!-- HISTORY -->
 <section id="viewHist" class="hide">
   <div id="weekWins"></div>
+  <div class="card" id="calCard"></div>
   <div class="card" id="muscleCard"></div>
   <div class="card" id="bwCard"></div>
   <div id="cardioHist"></div>
@@ -788,7 +819,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.30.1";
+const APP_VERSION = "1.31.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -1183,6 +1214,58 @@ function renderForm(){
 }
 
 /* ================= HISTORY ================= */
+/* ================= calendar (History) ================= */
+// ☆ hollow = checked in that morning; ★ filled = worked out (lifted or did cardio). A workout day shows ★ even without a check-in.
+let calMonth=null, calSel=null, calRange="30";
+const checkedIn = d => !!(logs[d] && typeof logs[d].score==="number");
+const workedOut = d => { const t=trainedOn(d); return (t && t!=="Rest") || !!(cardio[d] && cardio[d].length); };
+function firstDay(){ const ks=[...Object.keys(logs), ...Object.keys(lifts).filter(d=>liftEntries(d).length), ...Object.keys(cardio).filter(d=>(cardio[d]||[]).length)].sort(); return ks[0] || localDate(new Date()); }
+function calStats(range){
+  const today=localDate(new Date()), f=firstDay(), want = range==="all" ? f : shift(today, -(Number(range)-1)), start = want<f ? f : want;   // don't count days before you started
+  let n=0, wo=0, ci=0, rest=0, best=0, run=0;
+  for(let d=start; d<=today; d=shift(d,1)){ n++; const w=workedOut(d), c=checkedIn(d); if(w) wo++; if(c) ci++; if(logs[d] && logs[d].did==="Rest") rest++; run = (w||c) ? run+1 : 0; best=Math.max(best,run); }
+  return {n, wo, ci, rest, best, start};
+}
+function calPick(d){ calSel = calSel===d ? null : d; renderCal(); }
+function calNav(k){ const [y,m]=calMonth.split("-").map(Number), dt=new Date(y, m-1+k, 1); calMonth=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`; calSel=null; renderCal(); }
+function calSetRange(r){ calRange=r; renderCal(); }
+function renderCal(){
+  const el=document.getElementById("calCard"); if(!el) return;
+  const today=localDate(new Date()); if(!calMonth) calMonth=today.slice(0,7);
+  const [y,m]=calMonth.split("-").map(Number), first=new Date(y,m-1,1), dim=new Date(y,m,0).getDate();
+  const lead=first.getDay(), label=first.toLocaleDateString(undefined,{month:"long", year:"numeric"});
+  const minMonth=firstDay().slice(0,7);
+  let cells=["S","M","T","W","T","F","S"].map(x=>`<div class="dw">${x}</div>`).join("") + "<div></div>".repeat(lead);
+  for(let i=1;i<=dim;i++){
+    const d=`${calMonth}-${String(i).padStart(2,"0")}`, fut=d>today, w=!fut&&workedOut(d), c=!fut&&checkedIn(d);
+    const cls=[w?"wo":c?"ci":"", d===today?"today":"", d===calSel?"sel":"", fut?"fut":""].join(" ");
+    const lbl = w ? "worked out" : c ? "checked in" : "nothing logged";
+    cells+=`<button type="button" class="cd ${cls}" ${fut?"disabled":`onclick="calPick('${d}')"`} aria-label="${nice(d)}: ${lbl}"><span class="st">${w?"★":c?"☆":""}</span>${i}</button>`;
+  }
+  let det="";
+  if(calSel){
+    const L=logs[calSel], t=trainedOn(calSel), cd=(cardio[calSel]||[]), lifted=liftEntries(calSel).length;
+    const bits=[];
+    if(L && typeof L.score==="number") bits.push(`Checked in · readiness <b>${L.score}</b>`);
+    if(t && t!=="Rest") bits.push(`Trained <b>${esc(t)}</b>${lifted?` · ${new Set(liftEntries(calSel).map(e=>e.name)).size} exercises`:""}`);
+    if(t==="Rest") bits.push("Rest day");
+    if(cd.length) bits.push(`Cardio · ${cd.reduce((a,x)=>a+(x.min||0),0)} min`);
+    det=`<div class="hint" style="color:var(--text);margin-top:10px"><b>${nice(calSel)}</b><br>${bits.length?bits.join("<br>"):"Nothing logged"}${lifted?`<br><button type="button" class="linkbtn" onclick="showView('lifts');openLiftDay('${calSel}')">Open in Lifts ›</button>`:""}</div>`;
+  }
+  const S=calStats(calRange), pct=S.n?Math.round(S.wo/S.n*100):0;
+  const rl={all:"All time","30":"Last 30 days","7":"Last week"};
+  el.innerHTML=`<label class="l">Calendar</label>
+    <div class="seg2" style="margin-top:6px">${["all","30","7"].map(r=>`<button type="button" class="${calRange===r?"on":""}" onclick="calSetRange('${r}')">${{all:"All time","30":"30 days","7":"7 days"}[r]}</button>`).join("")}</div>
+    <div class="calstats">
+      <div><b>★ ${S.wo}</b><small>workouts</small></div>
+      <div><b>☆ ${S.ci}</b><small>check-ins</small></div>
+      <div><b>${pct}%</b><small>of days trained</small></div>
+    </div>
+    <div class="hint">${rl[calRange]}${calRange==="all"||S.n<Number(calRange)?` (since ${nice(S.start)})`:""}: ${S.n} day${S.n===1?"":"s"}${S.rest?` · ${S.rest} rest day${S.rest===1?"":"s"}`:""}${S.best>1?` · longest run of showing up: ${S.best} days`:""}</div>
+    <div class="calnav"><button type="button" aria-label="Previous month" onclick="calNav(-1)" ${calMonth<=minMonth?"disabled":""}>‹</button><b>${label}</b><button type="button" aria-label="Next month" onclick="calNav(1)" ${calMonth>=today.slice(0,7)?"disabled":""}>›</button></div>
+    <div class="cal">${cells}</div>
+    <div class="hint">★ worked out &nbsp;·&nbsp; ☆ checked in &nbsp;·&nbsp; tap a day for details</div>${det}`;
+}
 function renderHist(){
   const today=localDate(new Date());
   const keys=Object.keys(logs).sort().reverse();
@@ -1205,7 +1288,7 @@ function renderHist(){
   }).join("");
   document.getElementById("barsX").innerHTML=days.map(d=>`<span>${Number(d.slice(8))}</span>`).join("");
   renderCycleInsight(keys);
-  renderWeekWins(); renderMuscleCard(); renderBwCard(); document.getElementById("cardioHist").innerHTML=cardioWeekHtml(); renderBadges(); renderHistProgress();
+  renderCal(); renderWeekWins(); renderMuscleCard(); renderBwCard(); document.getElementById("cardioHist").innerHTML=cardioWeekHtml(); renderBadges(); renderHistProgress();
   const ul=document.getElementById("hist");
   if(!keys.length){ ul.innerHTML=`<div class="empty-hist">No entries yet. Your first check-in will show up here.</div>`; return; }
   const lbl={rest:"Rest",hyper:"Hypertrophy",comp:"Heavy"};
@@ -1408,6 +1491,7 @@ function renderLifts(){
             <div class="mini"><label>${isAssisted(e.name)?"Assist":"Weight"} (${U()})</label><div class="box"><input id="edW" type="number" inputmode="decimal" min="0" value="${e.w}"></div></div>
             <div class="mini"><label>Reps</label><div class="box"><input id="edR" type="number" inputmode="numeric" min="1" value="${e.r}"></div></div>
             <div class="mini"><label>Sets</label><div class="box"><input id="edS" type="number" inputmode="numeric" min="1" max="10" value="${e.s||1}"></div></div></div>
+            ${barHintText(e.name)?`<div class="hint" style="margin-top:6px">${barHintText(e.name)}</div>`:""}
             <input type="text" id="edN" value="${esc(e.name)}" maxlength="60" aria-label="Exercise name" style="margin-top:8px">
             <div class="row" style="gap:6px;margin-top:8px">
               <button class="btn" style="height:42px;font-size:14px" onclick="saveEdit()">Save</button>
@@ -1874,6 +1958,7 @@ function buildPlan(date, split, call){
     } else {
       txt=`${rx.label}, pick a weight you could do ~${rx.reps+rx.rir} times`;
     }
+    if(w>0 && barKind(name)) txt+=`<div class="ls">Includes the bar (${barKind(name)==="ez" ? (U()==="kg"?"EZ bar ~10 kg":"EZ bar ~25 lb") : (U()==="kg"?"20 kg":"45 lb")})</div>`;
     if(p.added && orig===p.added) txt+=`<div class="ls" style="color:var(--ok)">Added from your feedback</div>`;
     return {name, orig, rx, w, bw, txt, st};
   });
@@ -3372,7 +3457,7 @@ document.getElementById("bwIn").addEventListener("input",e=>{ const v=parseFloat
 document.getElementById("fbw").addEventListener("input",e=>{ const v=e.target.value.trim(); if(profile){ profile.bw = v==="" ? "" : Number(v); } renderFuel(lastAssess); savePrefs(); });
 
 /* ================= LIFT entry ================= */
-function pickEx(n){ const i=document.getElementById("exName"); i.value=n; prefill(n); setWLabel(); renderLastTime(); }
+function pickEx(n){ const i=document.getElementById("exName"); i.value=n; prefilledFor=(canonName(n)||"").toLowerCase(); prefill(n); setWLabel(); renderLastTime(); }
 function prefill(name){
   const c=canonName(name); if(!c) return;
   const todays=liftEntries(liftDate).filter(e=>e.name.toLowerCase()===c.toLowerCase());
@@ -3383,6 +3468,7 @@ function bump(id,d){
   const el=document.getElementById(id); let v=parseFloat(el.value)||0;
   if(id==="wIn"){ v=Math.max(0, v + d*(U()==="kg"?0.5:1)); } else if(id==="rIn") v=Math.max(1,v+d); else v=Math.min(10,Math.max(1,v+d));
   el.value=Math.round(v*100)/100;
+  if(id==="wIn"){ platesFromW(); renderPlates(); }
 }
 function writeLifts(date, entries, msg){
   const next={...lifts};
@@ -3457,9 +3543,59 @@ function delDay(){
 }
 function openLiftDay(d){ liftDate=d; editId=null; planCtx=null; renderLifts(); window.scrollTo({top:document.getElementById("dayLifts").offsetTop-120, behavior:"smooth"}); }
 document.getElementById("liftDate").addEventListener("change",e=>{ if(e.target.value){ liftDate=e.target.value; planCtx=null; editId=null; renderLifts(); } });
-function setWLabel(){ const a=isAssisted(document.getElementById("exName").value); document.getElementById("wLbl").innerHTML = `${a?"Assist":"Weight"} (<span class="U">${U()}</span>)`; }
+// Barbell lifts: log the total, bar included. A standard Olympic bar is 45 lb (20 kg); EZ bars run lighter.
+function barKind(name){
+  const n=String(name||""); if(!n.trim() || isAssisted(n)) return null;
+  if(/\bez\b|ez-bar|curl bar/i.test(n)) return "ez";
+  if(/dumbbell|\bdbs?\b|machine|smith|cable|kettlebell|\bkb\b|trap bar|hex bar|band|landmine/i.test(n)) return null;
+  const k=exKey(n); if(k) return EX[k].eq.includes("barbell") ? "bar" : null;
+  return /barbell|\bbb\b|bench press|back squat|front squat|^squat|deadlift|overhead press|military press|close.?grip bench|pendlay|hip thrust|good morning/i.test(n) ? "bar" : null;
+}
+function barHintText(name){ const b=barKind(name); return b ? `Total weight, bar included (${b==="ez" ? (U()==="kg"?"EZ bar ~10 kg":"EZ bar ~25 lb") : (U()==="kg"?"20 kg bar":"45 lb bar")}).` : ""; }
+// Barbell lifts: "how much weight is on the bar?" Tap the plates on one side; we double them, add the bar,
+// and that total is what gets logged. Typing a total still works, and the plates update to match.
+let plateCnt={}, plateBarW=null, plateFor="";
+const PLATES = () => U()==="kg" ? [25,20,15,10,5,2.5,1.25] : [45,35,25,10,5,2.5];
+const BARS = () => U()==="kg" ? [[20,"20"],[15,"15"],[10,"EZ 10"],[0,"None"]] : [[45,"45"],[35,"35"],[25,"EZ 25"],[0,"None"]];
+function defaultBar(name){ const ez=barKind(name??document.getElementById("exName").value)==="ez"; return U()==="kg" ? (ez?10:20) : (ez?25:45); }
+const curBar = () => plateBarW ?? defaultBar();
+const sideSum = () => Math.round(PLATES().reduce((a,p)=>a+p*(plateCnt[p]||0),0)*100)/100;
+function plateTotal(){ return Math.round((curBar() + 2*sideSum())*100)/100; }
+function perSide(total, bw){   // plates per side for a total
+  let left=(total-bw)/2; if(left<0) return null; const out=[];
+  for(const p of PLATES()){ const n=Math.floor((left+1e-9)/p); if(n){ out.push([p,n]); left-=n*p; } }
+  return {out, off: Math.round(left*2*100)/100};
+}
+function platesFromW(){   // match the plates to whatever total is in the box (prefill, typing, ±)
+  const w=Number(document.getElementById("wIn").value)||0; plateCnt={};
+  const r = w>curBar() ? perSide(w, curBar()) : null; if(r) r.out.forEach(([p,n])=>plateCnt[p]=n);
+}
+function setTotal(){ const i=document.getElementById("wIn"); i.value = sideSum()>0 || curBar()>0 ? plateTotal() : ""; }
+function plateAdd(p,d){ plateCnt[p]=Math.max(0,Math.min(12,(plateCnt[p]||0)+d)); setTotal(); renderPlates(); }
+function plateBar(w){ plateBarW=w; if(sideSum()>0) setTotal(); renderPlates(); }
+function plateClear(){ plateCnt={}; document.getElementById("wIn").value=curBar()||""; renderPlates(); }
+function renderPlates(){
+  const box=document.getElementById("plateBox"); if(!box) return;
+  const name=document.getElementById("exName").value, kind=barKind(name);
+  plateKey=name+"|"+document.getElementById("wIn").value;
+  box.classList.toggle("hide",!kind); if(!kind) return;
+  const u=U(), bw=curBar(), w=Number(document.getElementById("wIn").value)||0, side=sideSum();
+  const exact = !w || Math.abs(plateTotal()-w)<0.01;
+  const used=PLATES().filter(p=>plateCnt[p]);
+  box.innerHTML=`<label class="l" style="margin:0">How much weight is on the bar?</label>
+    <div class="hint" style="margin-top:2px">Tap the plates on <b>one side</b>. We'll double it and add the bar.</div>
+    <div class="bars">Bar:${BARS().map(([v,l])=>`<button type="button" class="${v===bw?"on":""}" onclick="plateBar(${v})">${l}</button>`).join("")}</div>
+    <div class="pg">${PLATES().map(p=>`<div class="pt ${plateCnt[p]?"on":""}"><div class="pw">${p}</div><div class="pc"><button type="button" aria-label="One less ${p}" onclick="plateAdd(${p},-1)">−</button><b>${plateCnt[p]||0}</b><button type="button" aria-label="One more ${p}" onclick="plateAdd(${p},1)">+</button></div></div>`).join("")}</div>
+    <div class="tot">${used.length ? `${used.map(p=>plateCnt[p]>1?`${plateCnt[p]}×${p}`:p).join(" + ")} each side + ${bw} bar = <b style="font-size:18px">${fmtW(plateTotal())} ${u}</b>` : `Just the bar: <b style="font-size:18px">${fmtW(bw)} ${u}</b>`}
+    ${!exact ? `<div class="muted" style="margin-top:4px">You typed ${fmtW(w)} ${u}. Closest with these plates is ${fmtW(plateTotal())}. Your typed weight is what gets logged.</div>` : ""}
+    ${used.length ? ` <button type="button" class="linkbtn" style="margin-left:6px" onclick="plateClear()">Clear</button>` : ""}</div>`;
+}
+let plateKey="";
+function setWLabel(){ const n=document.getElementById("exName").value; if(plateKey===n+"|"+document.getElementById("wIn").value) return; if(plateFor!==n){ plateFor=n; plateBarW=null; } platesFromW(); renderPlates(); const a=isAssisted(document.getElementById("exName").value); document.getElementById("wLbl").innerHTML = `${a?"Assist":"Weight"} (<span class="U">${U()}</span>)`; }
 document.getElementById("exName").addEventListener("input",()=>{ setWLabel(); renderLastTime(); });
-document.getElementById("exName").addEventListener("change",e=>{ prefill(e.target.value); setWLabel(); renderLastTime(); });
+document.getElementById("wIn").addEventListener("input",()=>{ platesFromW(); renderPlates(); });
+let prefilledFor="";   // don't re-prefill the same lift when the box blurs (it would wipe plates you just tapped)
+document.getElementById("exName").addEventListener("change",e=>{ const c=(canonName(e.target.value)||"").toLowerCase(); if(c!==prefilledFor){ prefilledFor=c; prefill(e.target.value); } setWLabel(); renderLastTime(); });
 document.getElementById("progSel").addEventListener("change",e=>{ progName=e.target.value; renderProgress(); });
 
 /* ================= SETUP & SETTINGS ================= */
