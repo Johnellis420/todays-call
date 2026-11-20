@@ -777,7 +777,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.29.0";
+const APP_VERSION = "1.29.1";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -3114,7 +3114,9 @@ function renderPlan(a){
       const inPlan=new Set(plan.items.map(x=>x.name.toLowerCase()));
       const mineAlts=(plan.pool||[]).filter(a=>!inPlan.has(a.toLowerCase())).slice(0,4);
       const libAlts=[...altsFor(it.orig).filter(a=>a!==it.name), ...altsFor(it.name).filter(a=>a!==it.orig&&a!==it.name)].filter(a=>!mineAlts.includes(a)).sort((x,y)=>(hasEq(y)?1:0)-(hasEq(x)?1:0) || (noStretch.some(m=>primaryMus(it.name).includes(m)) ? (isStretch(y)?1:0)-(isStretch(x)?1:0) : 0));
-      const alts=[...new Set([...(it.name!==it.orig?[it.orig]:[]), ...mineAlts, ...libAlts])].slice(0,7);
+      // Your own exercise names aren't in the library: offer library moves for the same muscle (stretch ones first when that muscle needs one)
+      const pm=primaryMus(it.name)[0], musAlts = (!exKey(it.name) && pm) ? Object.keys(EX).filter(n=>n!==it.name && hasEq(n) && primaryMus(n).includes(pm) && normEx(n)!==normEx(it.name)).sort((x,y)=>(isStretch(y)?1:0)-(isStretch(x)?1:0)).slice(0,6) : [];
+      const alts=[...new Set([...(it.name!==it.orig?[it.orig]:[]), ...mineAlts, ...libAlts, ...musAlts])].slice(0,7);
       const mineSet=new Set(mineAlts);
       return `<div class="px ${reorderOn?"ro":""}" onclick="${reorderOn?"":`openLift(${i})`}">
         ${(()=>{ it.subAs = doneAs[it.orig.toLowerCase()] || doneAs[it.name.toLowerCase()] || null; it.isDone = done.has(it.name.toLowerCase()) || !!it.subAs; return ""; })()}
