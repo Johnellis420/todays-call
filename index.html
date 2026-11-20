@@ -313,6 +313,9 @@
   .ordb{border:1px solid var(--line);background:var(--panel2);color:var(--text);font:600 13px Inter;border-radius:999px;padding:7px 12px;cursor:pointer}
   .ordb.on{background:var(--text);color:#111;border-color:var(--text)}
   .ordb.freak{border-color:#6a3fb0;background:#2a1d40;color:#e2cfff}
+  .bcard.frkc{border-color:#6a3fb0;background:linear-gradient(180deg,#2a1d40,var(--panel) 70%)}
+  .frkb{display:flex;flex-direction:column;gap:8px;margin-top:16px}.frkb .btn{margin:0}
+  .frkb .btn:first-child{background:#8f63d8;color:#fff}
   .px.ro{cursor:default}
   .mvb{display:flex;flex-direction:column;gap:6px;align-self:center}
   .mvb button{width:40px;height:34px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:700 17px Inter;border-radius:10px;cursor:pointer}
@@ -773,11 +776,17 @@
   <div class="gdots" id="gDots"></div>
   <div class="gnav"><button type="button" class="btn ghost" id="gBack" style="flex:1" onclick="guideGo(-1)">Back</button><button type="button" class="btn" id="gNext" style="flex:2" onclick="guideGo(1)">Next</button></div>
 </div></div>
+<div class="bpop hide" id="frkPop" role="dialog" aria-modal="true" aria-labelledby="frkT" onclick="if(event.target===this) closeFreaky()"><div class="bcard frkc">
+  <div style="font-size:52px;line-height:1">🎲</div>
+  <div class="bname" id="frkT" style="margin-top:8px">Feelin freaky are we?</div>
+  <div class="bdesc">(This will randomize the order of today's workouts)</div>
+  <div class="frkb"><button type="button" class="btn" id="frkGo" onclick="getFreaky()">Let's get freaky 😈</button><button type="button" class="btn ghost" onclick="closeFreaky()">Nah</button></div>
+</div></div>
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
-const APP_VERSION = "1.29.1";
+const APP_VERSION = "1.29.2";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -3107,7 +3116,7 @@ function renderPlan(a){
     ${timeLine(form.date)}
     <div class="src">${src}</div>${plan.fit?`<div class="src" style="margin-top:-4px">⏱ About ${plan.fit.est} min of lifting${plan.fit.capped||plan.fit.dropped.length?`, sized for your ${profile.sessMin}-min session`:""}${plan.fit.capped?`: fewer sets on ${plan.fit.capped} exercise${plan.fit.capped===1?"":"s"}`:""}${plan.fit.dropped.length?`${plan.fit.capped?",":":"} ${esc(plan.fit.dropped.join(", "))} moved to ⇄ Swap`:""}.${profile.warmIn===false?" Warm up first.":""}</div>`:""}${plan.deload?`<div class="src" style="color:var(--rest);margin-top:-4px">🔋 Deload week, day ${plan.deload.day}: about 60% of your usual sets, same weights.</div>`:""}${plan.fbNote?`<div class="src" style="color:var(--hyper);margin-top:-4px">${esc(plan.fbNote)}</div>`:""}
     ${noStretch.length?`<div class="src" style="color:var(--hyper);margin-top:-2px">↔ No stretch-position move for ${noStretch.map(m=>MUS_LABEL[m].toLowerCase()).join(" or ")} today. Studies suggest loading a muscle while it's stretched adds growth, so consider swapping one exercise for ${noStretch.map(stretchSug).join("; or ")}. ⇄ Swap lists stretch options first.</div>`:""}
-    ${plan.items.length>1?`<div class="ordbar"><button type="button" class="ordb freak" onclick="getFreaky()">🎲 Get freaky</button><button type="button" class="ordb ${reorderOn?"on":""}" onclick="toggleReorder()">${reorderOn?"✓ Done":"↕ Reorder"}</button>${plan.ordered?`<button type="button" class="ordb" onclick="resetOrder()">↺ Reset order</button>`:""}</div>`:""}
+    ${plan.items.length>1?`<div class="ordbar"><button type="button" class="ordb freak" onclick="askFreaky()">🎲 Get freaky</button><button type="button" class="ordb ${reorderOn?"on":""}" onclick="toggleReorder()">${reorderOn?"✓ Done":"↕ Reorder"}</button>${plan.ordered?`<button type="button" class="ordb" onclick="resetOrder()">↺ Reset order</button>`:""}</div>`:""}
     ${(()=>{ if(!plan.ordered) return ""; const main = call==="comp" ? plan.items.findIndex(it=>it.rx && it.rx.kind==="top") : -1;
       return main>0 ? `<div class="src" style="color:#e8b04a;margin-top:-2px">Heads up: your main lift (${esc(plan.items[main].name)}) is now #${main+1}, so it may feel heavier after the others. Same weights, so ease off if form slips.</div>` : `<div class="src" style="margin-top:-2px">Your order for today. Next time goes back to normal.</div>`; })()}
     ${plan.items.map((it,i)=>{
@@ -3143,7 +3152,15 @@ function saveOrder(list){
   prefs={...prefs, dayOrder:O}; store(KEYS.prefs, prefs);
 }
 const FREAKY=["Freaky order unlocked 😈","Shuffled. Your muscles won't see it coming 🎲","New order. Embrace the chaos 🌀","Plot twist workout 🔀","Same work, brand new order. Let's get weird 🤪"];
+function askFreaky(){
+  if(!currentPlan || currentPlan.items.length<2){ toast("Need at least 2 exercises to shuffle"); return; }
+  if(currentPlan.ordered && Array.isArray(dayOrder()[form.date])){ getFreaky(); return; }   // already freaky today: reshuffle
+  document.getElementById("frkPop").classList.remove("hide"); document.getElementById("frkGo").focus();
+}
+function closeFreaky(){ document.getElementById("frkPop").classList.add("hide"); }
+document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !document.getElementById("frkPop").classList.contains("hide")) closeFreaky(); });
 function getFreaky(){
+  closeFreaky();
   if(!currentPlan || currentPlan.items.length<2){ toast("Need at least 2 exercises to shuffle"); return; }
   const cur=currentPlan.items.map(it=>it.orig); let next=cur;
   for(let t=0;t<8 && next.join("|")===cur.join("|");t++){ next=[...cur]; for(let i=next.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [next[i],next[j]]=[next[j],next[i]]; } }
