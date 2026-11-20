@@ -819,7 +819,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.31.1";
+const APP_VERSION = "1.32.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -1861,7 +1861,10 @@ function recentStats(name, before){
   let ss=sessions(name).filter(s=>s.date<before); if(ss.some(s=>!deloadOn(s.date))) ss=ss.filter(s=>!deloadOn(s.date)); ss=ss.slice(-3);
   if(!ss.length) return null;
   const last=ss[ss.length-1];
-  return {e1:Math.max(...ss.map(s=>s.best)), maxReps:Math.max(...ss.map(s=>s.maxReps)), last};
+  let e1=Math.max(...ss.map(s=>s.best));
+  const t=!isAssisted(name) && testedMax(name, before);
+  if(t && t.date>=shift(before,-120)) e1=Math.max(t.w, ...sessions(name).filter(s=>s.date>t.date && s.date<before).map(s=>s.best));   // your tested max, unless you've beaten it since
+  return {e1, maxReps:Math.max(...ss.map(s=>s.maxReps)), last, tested:t||null};
 }
 // No history on this exact lift: estimate it from one you have logged. Rough ratios of 1-rep strength;
 // close grip runs ~5-10% under regular bench (Saeterbakken 2021), a pair of dumbbells ~15-20% under the barbell (Saeterbakken 2011).
@@ -3087,6 +3090,32 @@ function badgeInfo(id){
   toast(E[id] ? `${b.icon} ${b.name}: ${(badgeState.seeded||[]).includes(id) ? b.desc : "earned "+nice(E[id])}` : `${b.icon} ${b.name}: ${b.desc}`);
 }
 
+/* ================= tested 1-rep maxes ================= */
+// Estimated max comes from your sets (Epley). If you've actually tested a max, enter it: plans use it for 120 days,
+// unless a later session's estimate beats it (you got stronger).
+const maxes = () => (profile && profile.maxes) || {};
+function testedMax(name, before){ const t=maxes()[String(name).toLowerCase()]; if(!t || !(t.w>0)) return null; if(before && t.date>before) return null; return t; }
+function maxBox(name, est){
+  const t=testedMax(name), u=U(), id="mx_"+Math.abs([...name].reduce((a,c)=>a*31+c.charCodeAt(0)|0,7));
+  const old = t && t.date < shift(localDate(new Date()),-120);
+  return `<div class="plates" style="margin-top:12px">
+    <label class="l" style="margin:0">1-rep max</label>
+    <div class="hint" style="margin-top:2px;color:var(--text)">Estimated from your recent heavy and hypertrophy sets: <b>${Math.round(est).toLocaleString()} ${u}</b></div>
+    ${t ? `<div class="hint" style="color:var(--text)">Your tested max: <b>${fmtW(t.w)} ${u}</b> (${nice(t.date)}). ${old ? "It's over 4 months old, so plans use your estimate now. Retest and update it." : "Plans use this instead of the estimate."} <button type="button" class="linkbtn" onclick="clearMax('${jsq(name)}')">Remove</button></div>` : `<div class="hint">Actually tested your max? Enter it and plans will use it instead of the estimate.</div>`}
+    <div class="row" style="gap:8px;margin-top:8px;align-items:stretch">
+      <input id="${id}" type="number" inputmode="decimal" min="1" step="2.5" placeholder="${t?"New max":"Your max"} (${u})" style="flex:1;min-width:0">
+      <button class="btn" type="button" style="flex:0 0 auto;width:auto;padding:0 18px" onclick="saveMax('${jsq(name)}','${id}')">${t?"Update":"Save"}</button>
+    </div></div>`;
+}
+function saveMax(name, id){
+  const w=Number(document.getElementById(id).value); if(!(w>0) || w>2000){ toast("Enter your max weight"); return; }
+  const best=Math.max(0,...sessions(name).map(s=>s.best));
+  if(best>0 && w>best*1.8){ toast(`That's way above your estimate. Double-check it (${U()})`); return; }
+  profile.maxes={...maxes(), [name.toLowerCase()]:{w:Math.round(w*100)/100, date:localDate(new Date())}}; store(KEYS.profile, profile);
+  toast(`Saved: ${fmtW(w)} ${U()} max on ${name} 💪`); renderHistProgress();
+}
+function clearMax(name){ const m={...maxes()}; delete m[name.toLowerCase()]; profile.maxes=m; store(KEYS.profile, profile); toast("Tested max removed. Using your estimate"); renderHistProgress(); }
+
 /* ================= history: progress by exercise or split day ================= */
 let hpSel=null, hpMode="all";
 function dayType(d, sets){
@@ -3108,11 +3137,11 @@ function renderHistProgress(){
   let rows, metricLbl, unit, lowerBetter=false;
   if(hpSel.startsWith("ex:")){
     const name=hpSel.slice(3);
-    rows=sessions(name).map(x=>({date:x.date, type:dayType(x.date,x.sets), best:x.best, top:x.top, vol:volOf(x.sets), setLoad:Math.max(...x.sets.map(e=>e.w*e.r)), txt:setsText(x.sets), maxReps:x.maxReps}));
+    rows=sessions(name).map(x=>({date:x.date, type:dayType(x.date,x.sets), best:x.best, top:x.top, vol:volOf(x.sets), setLoad:Math.max(...x.sets.map(e=>e.w*e.r)), bset:x.sets.reduce((a,e)=>e.w*e.r>a.w*a.r?e:a, x.sets[0]), txt:setsText(x.sets), maxReps:x.maxReps}));
     const bw=rows.every(r=>r.best===0);
     if(isAssisted(name)){ metricLbl="Assistance"; unit=U(); lowerBetter=true; rows.forEach(r=>r.m=Math.min(...sessions(name).find(x=>x.date===r.date).sets.map(asstOf))); }
     else if(bw){ metricLbl="Best reps"; unit="reps"; rows.forEach(r=>r.m=r.maxReps); }
-    else if(hpMode==="hyper"){ metricLbl="Best set"; unit=U(); rows.forEach(r=>r.m=r.setLoad); }
+    else if(hpMode==="hyper"){ metricLbl="Best set"; unit=U(); rows.forEach(r=>{ r.m=r.setLoad; r.c=e1rm(r.bset.w, r.bset.r); }); }
     else { metricLbl="Est. 1-rep max"; unit=U(); rows.forEach(r=>r.m=r.best); }
   } else {
     const sp=hpSel.slice(4);
@@ -3120,21 +3149,27 @@ function renderHistProgress(){
     metricLbl="Session volume"; unit=U();
   }
   const f = hpMode==="all" ? rows : rows.filter(r=>r.type===hpMode);
-  if(!f.length){ body.innerHTML=`<div class="hint">No ${hpMode==="heavy"?"heavy":"hypertrophy"} days logged for this yet.</div>`; return; }
+  if(!f.length){ const nm=hpSel.startsWith("ex:")?hpSel.slice(3):null, ok=nm && !lowerBetter && unit!=="reps" && rows.length;
+    body.innerHTML=`<div class="hint">No ${hpMode==="heavy"?"heavy":"hypertrophy"} days logged for this yet.</div>${ok?maxBox(nm, Math.max(...rows.slice(-3).map(r=>r.best))):""}`; return; }
   const first=f[0], last=f[f.length-1], best=f.reduce((a,r)=>(lowerBetter ? r.m<a.m : r.m>a.m)?r:a,f[0]);
   const fmtM = v => unit==="reps" ? Math.round(v) : Math.round(v).toLocaleString();
+  const isSet = metricLbl==="Best set", setTxt = r => `${fmtW(r.bset.w)}<small> ${unit}</small> × ${r.bset.r}`;
   let line="";
-  if(f.length>=2){ const d=(last.m-first.m)*(lowerBetter?-1:1);
+  if(f.length>=2 && isSet){ line = last.m>first.m ? `<p class="goodnote">▲ From ${fmtW(first.bset.w)}×${first.bset.r} to ${fmtW(last.bset.w)}×${last.bset.r} since ${nice(first.date)}. Keep it rolling 💪</p>` : `<div class="delta">Holding steady since ${nice(first.date)}${isCut()?". On a cut, that's a win.":"."}</div>`; }
+  else if(f.length>=2){ const d=(last.m-first.m)*(lowerBetter?-1:1);
     line = lowerBetter && d>0 ? `<p class="goodnote">▼ ${fmtM(d)} ${unit} less assistance since ${nice(first.date)}. Keep it rolling 💪</p>` : d>0 ? `<p class="goodnote">▲ ${fmtM(d)} ${unit} ${metricLbl.toLowerCase()} since ${nice(first.date)}. Keep it rolling 💪</p>`
       : `<div class="delta">Holding steady since ${nice(first.date)}${isCut()?". On a cut, that's a win.":"."}</div>`; }
+  const exName = hpSel.startsWith("ex:") ? hpSel.slice(3) : null, loaded = exName && !lowerBetter && unit!=="reps";
+  const est = loaded ? Math.max(...rows.slice(-3).map(r=>r.best)) : 0;   // from your last 3 sessions, heavy and hypertrophy
   body.innerHTML=`<div class="hpstats">
-      <div class="stat"><div class="k">Latest ${metricLbl.toLowerCase()}</div><div class="v" style="font-size:22px">${fmtM(last.m)}<small> ${unit}</small></div></div>
-      <div class="stat"><div class="k">Best</div><div class="v" style="font-size:22px">${fmtM(best.m)}<small> ${unit}</small></div></div>
-      <div class="stat"><div class="k">Sessions</div><div class="v" style="font-size:22px">${f.length}</div></div></div>
+      <div class="stat"><div class="k">Latest ${metricLbl.toLowerCase()}</div><div class="v" style="font-size:22px">${isSet ? setTxt(last) : `${fmtM(last.m)}<small> ${unit}</small>`}</div></div>
+      <div class="stat"><div class="k">${isSet?"Best set":"Best"}</div><div class="v" style="font-size:22px">${isSet ? setTxt(best) : `${fmtM(best.m)}<small> ${unit}</small>`}</div></div>
+      ${isSet && est ? `<div class="stat"><div class="k">Est. 1-rep max</div><div class="v" style="font-size:22px">${fmtM(est)}<small> ${unit}</small></div></div>` : `<div class="stat"><div class="k">Sessions</div><div class="v" style="font-size:22px">${f.length}</div></div>`}</div>
     ${line}
-    ${chartSVG(f.slice(-20), r=>r.m, unit)}
+    ${chartSVG(f.slice(-20), r=>isSet ? r.c : r.m, unit)}
+    ${loaded ? maxBox(exName, est) : ""}
     <ul class="sess">${f.slice(-8).reverse().map(r=>`<li onclick="showView('lifts');openLiftDay('${r.date}')" style="cursor:pointer"><span><span class="tbadge ${r.type}">${r.type==="heavy"?"Heavy":"Hyper"}</span>${nice(r.date)} ›</span><span>${esc(r.txt)}</span></li>`).join("")}</ul>
-    <div class="hint">${hpSel.startsWith("ex:") ? (metricLbl==="Best set" ? "Hypertrophy progress = your best set's weight × reps, so 155×13 beats 145×12 even on a shorter day." : metricLbl==="Best reps" ? "Bodyweight exercise: tracked by best reps." : metricLbl==="Assistance" ? "Assisted exercise: tracked by the least assistance you used. Lower is better." : "Estimated 1-rep max from your best set, so a 5-rep day and a 10-rep day compare fairly.") : "Session volume = weight × reps × sets across the whole day."} Heavy vs hypertrophy comes from that day's call (or from your reps if you didn't check in).</div>`;
+    <div class="hint">${hpSel.startsWith("ex:") ? (metricLbl==="Best set" ? `Hypertrophy progress = your best set (weight and reps), so 155×13 beats 145×12 even on a shorter day. The chart shows each best set as an estimated 1-rep max. ${f.length} session${f.length===1?"":"s"}.` : metricLbl==="Best reps" ? "Bodyweight exercise: tracked by best reps." : metricLbl==="Assistance" ? "Assisted exercise: tracked by the least assistance you used. Lower is better." : "Estimated 1-rep max from your best set, so a 5-rep day and a 10-rep day compare fairly.") : "Session volume = weight × reps × sets across the whole day."} Heavy vs hypertrophy comes from that day's call (or from your reps if you didn't check in).</div>`;
 }
 document.getElementById("hpSel").addEventListener("change", e=>{ hpSel=e.target.value; renderHistProgress(); });
 
@@ -3762,6 +3797,7 @@ function changeUnits(v){
   lifts=next;
   { const L={...logs}; let ch=false; Object.keys(L).forEach(d=>{ if(typeof L[d].bw==="number"){ L[d]={...L[d], bw:Math.round(L[d].bw*f*10)/10}; ch=true; } }); if(ch && store(KEYS.logs,L)){ logs=L; form=fromLog(form.date); } }
   if(Number(profile.bw)>0) profile.bw=Math.round(Number(profile.bw)*f*10)/10;
+  if(profile.maxes){ const M={}; Object.keys(profile.maxes).forEach(k=>M[k]={...profile.maxes[k], w:rnd(profile.maxes[k].w)}); profile.maxes=M; }
   profile.units=v; store(KEYS.profile,profile);
   applyUnits(); syncFuelInputs(); renderSettings(); toast("Switched to "+v);
 }
@@ -3844,7 +3880,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const okDate=k=>/^\d{4}-\d{2}-\d{2}$/.test(k);
     const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object"){ L[k]={...d.logs[k]}; if(!(typeof L[k].bw==="number" && L[k].bw>0 && L[k].bw<1000)) delete L[k].bw; } });
     const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1}; if(typeof e.forPlan==="string") o.forPlan=e.forPlan.slice(0,60); if(typeof e.t==="number") o.t=e.t; return o; }); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
-    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false, days:(Number(d.profile.days)>=2&&Number(d.profile.days)<=7)?Number(d.profile.days):undefined, sessMin:(Number(d.profile.sessMin)>=30&&Number(d.profile.sessMin)<=180)?Number(d.profile.sessMin):undefined, warmIn:d.profile.warmIn!==false, weekdays:(()=>{ const W=d.profile.weekdays; if(!W || typeof W!=="object") return undefined; const o={}; for(let w=0;w<7;w++){ const v=W[w]; o[w] = typeof v==="string" && v.length<=30 ? v : "rest"; } return o; })(), musMap:(()=>{ const o={}, M=d.profile.musMap; if(M && typeof M==="object") Object.keys(M).slice(0,300).forEach(k=>{ const v=M[k]; if(!v || typeof v!=="object" || k.length>60) return; if(v.skip) o[k]={skip:true}; else if(MUS_LABEL[v.p]) o[k]={p:v.p, h:Array.isArray(v.h)?v.h.filter(x=>MUS_LABEL[x]&&x!==v.p).slice(0,4):[]}; }); return o; })(), fixedBars:(()=>{ const o={}, F=d.profile.fixedBars; if(F && typeof F==="object") Object.keys(F).slice(0,100).forEach(k=>{ if(k.length<=60 && (F[k]===true||F[k]===false)) o[k]=F[k]; }); return o; })()} : profile;
+    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false, days:(Number(d.profile.days)>=2&&Number(d.profile.days)<=7)?Number(d.profile.days):undefined, sessMin:(Number(d.profile.sessMin)>=30&&Number(d.profile.sessMin)<=180)?Number(d.profile.sessMin):undefined, warmIn:d.profile.warmIn!==false, weekdays:(()=>{ const W=d.profile.weekdays; if(!W || typeof W!=="object") return undefined; const o={}; for(let w=0;w<7;w++){ const v=W[w]; o[w] = typeof v==="string" && v.length<=30 ? v : "rest"; } return o; })(), musMap:(()=>{ const o={}, M=d.profile.musMap; if(M && typeof M==="object") Object.keys(M).slice(0,300).forEach(k=>{ const v=M[k]; if(!v || typeof v!=="object" || k.length>60) return; if(v.skip) o[k]={skip:true}; else if(MUS_LABEL[v.p]) o[k]={p:v.p, h:Array.isArray(v.h)?v.h.filter(x=>MUS_LABEL[x]&&x!==v.p).slice(0,4):[]}; }); return o; })(), maxes:(()=>{ const o={}, M=d.profile.maxes; if(M && typeof M==="object") Object.keys(M).slice(0,200).forEach(k=>{ const v=M[k]; if(k.length<=60 && v && Number(v.w)>0 && Number(v.w)<=2000 && /^\d{4}-\d\d-\d\d$/.test(v.date)) o[k]={w:Number(v.w), date:v.date}; }); return o; })(), fixedBars:(()=>{ const o={}, F=d.profile.fixedBars; if(F && typeof F==="object") Object.keys(F).slice(0,100).forEach(k=>{ if(k.length<=60 && (F[k]===true||F[k]===false)) o[k]=F[k]; }); return o; })()} : profile;
     const FB={}; if(d.feedback && typeof d.feedback==="object") Object.keys(d.feedback).filter(okDate).forEach(k=>{ const f=d.feedback[k]; if(f && typeof f==="object"){ const o={}; if(FEEL.some(x=>x[0]===f.feel)) o.feel=f.feel; if(VOL.some(x=>x[0]===f.vol)) o.vol=f.vol; if(typeof f.split==="string") o.split=f.split.slice(0,30); if(o.vol==="moreEx" && MUS_LABEL[f.mus]){ o.mus=f.mus; if(SUB_LABEL[f.sub]) o.sub=f.sub; if(f.musPick) o.musPick=true; }
           if(Array.isArray(f.which)) { const w=f.which.filter(x=>typeof x==="string").map(x=>x.slice(0,60)).slice(0,12); if(w.length) o.which=w; }
           if(typeof f.drop==="string") o.drop=f.drop.slice(0,60); if(typeof f.note==="string" && f.note.trim()) o.note=f.note.slice(0,300); if(f.fromNote) o.fromNote=true;
