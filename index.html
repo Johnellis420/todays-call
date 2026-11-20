@@ -309,6 +309,8 @@
   .bwnote{font-size:13.5px;line-height:1.45;margin-top:10px;color:#d6d9dd}
   .sgx{margin-bottom:12px}
   .stag{font:600 10.5px Inter;color:#9fd8ff;border:1px solid #2f5670;border-radius:999px;padding:1px 6px;vertical-align:2px;white-space:nowrap}
+  .fbnote{width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--line);border-radius:12px;color:var(--text);font:15px/1.4 Inter;padding:10px 12px;resize:vertical}
+  .fbw button{font-size:13px}
   .ordbar{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px}
   .ordb{border:1px solid var(--line);background:var(--panel2);color:var(--text);font:600 13px Inter;border-radius:999px;padding:7px 12px;cursor:pointer}
   .ordb.on{background:var(--text);color:#111;border-color:var(--text)}
@@ -786,7 +788,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.29.2";
+const APP_VERSION = "1.30.1";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -1336,10 +1338,12 @@ function allNames(){
   Object.keys(lifts).sort().reverse().forEach(d=>liftEntries(d).forEach(e=>{ if(!seen.has(e.name.toLowerCase())) seen.set(e.name.toLowerCase(), e.name); }));
   return [...seen.values()];
 }
+// "Close Grip Bench", "close-grip bench press" and "CG Bench Press" are the same lift
+const looseKey = n => normEx(String(n).replace(/\bcg\b/ig,"close grip")).replace(/press$/,"");
 function sessions(name){
-  const k=name.toLowerCase();
+  const k=name.toLowerCase(), lk=looseKey(name);
   return Object.keys(lifts).sort().map(d=>{
-    const sets=liftEntries(d).filter(e=>e.name.toLowerCase()===k).map(e=>isAssisted(e.name) ? {...e, w:effW(e), assist:e.w, eff:true} : e);
+    const sets=liftEntries(d).filter(e=>e.name.toLowerCase()===k || looseKey(e.name)===lk).map(e=>isAssisted(e.name) ? {...e, w:effW(e), assist:e.w, eff:true} : e);
     if(!sets.length) return null;
     const best=Math.max(...sets.map(e=>e1rm(e.w,e.r)));
     const top=sets.reduce((a,e)=> (e.w>a.w || (e.w===a.w && e.r>a.r)) ? e : a, sets[0]);
@@ -1750,14 +1754,14 @@ function planList(split, call, before){
     const fb=fbFor(u.last, split);
     let added=null;
     if(fb && fb.vol==="moreEx"){ added=(fb.mus && exForMuscle(fb.mus, picked, u.list.filter(n=>!picked.includes(n)).concat(u.pool), fb.sub)) || u.list.find(n=>!picked.includes(n)) || u.pool[0] || extraFor(split,"comp",[...picked]); if(added) picked.push(added); }
-    if(fb && fb.vol==="lessEx" && picked.length>3) picked.pop();
+    if(fb && fb.vol==="lessEx" && picked.length>3){ const k=fb.drop ? picked.findIndex(n=>sameEx(n,fb.drop)) : -1; if(k>0) picked.splice(k,1); else if(k!==0 && !fb.drop) picked.pop(); }
     const dropped=u.list.filter(n=>!picked.includes(n));
     return {names:picked, mine:true, n:u.n, pool:[...dropped, ...u.pool.filter(n=>n!==added)], last:u.last, trimmed:dropped.length, fb, added};
   }
   const fb=fbFor(u.last, split);
   let names=u.list.slice(0,12), pool=[...u.pool], added=null;
   if(fb && fb.vol==="moreEx"){ added = (fb.mus && exForMuscle(fb.mus, names, pool, fb.sub)) || pool[0] || extraFor(split,"hyper",names); if(added){ names=[...names, added]; pool=pool.filter(n=>n!==added); } }
-  if(fb && fb.vol==="lessEx" && names.length>3){ pool=[names[names.length-1], ...pool]; names=names.slice(0,-1); }
+  if(fb && fb.vol==="lessEx" && names.length>3){ const k=fb.drop ? names.findIndex(n=>sameEx(n,fb.drop)) : names.length-1; if(k>=0){ pool=[names[k], ...pool]; names=names.filter((_,j)=>j!==k); } }
   return {names, mine:true, n:u.n, pool, last:u.last, fb, added};
 }
 // An exercise for this split day that isn't already in the plan, and that you have equipment for.
@@ -1774,6 +1778,28 @@ function recentStats(name, before){
   if(!ss.length) return null;
   const last=ss[ss.length-1];
   return {e1:Math.max(...ss.map(s=>s.best)), maxReps:Math.max(...ss.map(s=>s.maxReps)), last};
+}
+// No history on this exact lift: estimate it from one you have logged. Rough ratios of 1-rep strength;
+// close grip runs ~5-10% under regular bench (Saeterbakken 2021), a pair of dumbbells ~15-20% under the barbell (Saeterbakken 2011).
+const BENCH=/^(barbell |flat )?bench( press)?$|^flat (barbell )?bench/i, INC_BB=/incline (barbell )?bench( press)?$|incline barbell/i, OHP_BB=/(barbell|military|standing|seated|sitting).*(shoulder|overhead) press|^overhead press$/i;
+const RELATED=[   // [this lift, [[a lift you've logged, ratio], ...]]
+  [/close.?grip.*bench|\bcg bench/i, [[BENCH,0.9],[INC_BB,1.05]]],
+  [/incline.*(barbell|bench press)/i, [[BENCH,0.82]]],
+  [/(db|dumbbell).*incline.*press|incline.*(db|dumbbell).*press/i, [[INC_BB,0.4],[BENCH,0.34]]],
+  [/(db|dumbbell).*(bench|chest|flat) press/i, [[BENCH,0.4],[/(db|dumbbell).*incline.*press|incline (db|dumbbell) press/i,1.15]]],
+  [BENCH, [[/close.?grip.*bench/i,1.1],[INC_BB,1.22],[/(db|dumbbell).*incline.*press|incline (db|dumbbell) press/i,2.1]]],
+  [/(db|dumbbell).*(shoulder|overhead) press/i, [[OHP_BB,0.4]]],
+  [OHP_BB, [[/(db|dumbbell).*(shoulder|overhead) press/i,2.4],[BENCH,0.62]]],
+  [/front squat/i, [[/back squat|^(barbell )?squat$/i,0.8]]],
+  [/(romanian|\brdl\b)/i, [[/^(barbell |conventional )?deadlift$/i,0.7]]],
+  [/(db|dumbbell).*row/i, [[/barbell row|bent.?over row/i,0.45]]],
+];
+const loggedNames = () => [...new Set(Object.keys(lifts).flatMap(d=>liftEntries(d).map(e=>e.name)))];
+function relatedStats(name, before){
+  const r=RELATED.find(([re])=>re.test(name)); if(!r) return null;
+  const mine=loggedNames().filter(n=>looseKey(n)!==looseKey(name) && !isAssisted(n));
+  for(const [re,ratio] of r[1]) for(const src of mine.filter(n=>re.test(n))){ const st=recentStats(src, before); if(st && st.e1>0) return {e1:st.e1*ratio, from:src, ratio}; }
+  return null;
 }
 function roundW(w){
   if(U()==="kg") return w>=20 ? Math.round(w/2.5)*2.5 : Math.round(w/1.25)*1.25;
@@ -1812,19 +1838,20 @@ function progression(top, feel){
 }
 function buildPlan(date, split, call){
   const p=planList(split, call, date), dl=deloadOf(date);
-  if(dl){ p.fb=null; if(p.added){ p.names=p.names.filter(n=>n!==p.added); p.added=null; } }
+  if(dl){ p.fbKeep=p.fb; p.fb=null; if(p.added){ p.names=p.names.filter(n=>n!==p.added); p.added=null; } }
   const fb=p.fb, N=p.names.length, half=Math.ceil(N/2);
   const mk=(names, cap)=>names.map((orig,idx)=>{
     const name=resolveName(orig, date, p.mine);
     let ts = p.mine ? typicalSets(name, date) : null;
     if(p.added && orig===p.added && !ts) ts=3;
-    if(ts && fb && call!=="comp"){ if(fb.vol==="more" && idx<half) ts=Math.min(8,ts+1); if(fb.vol==="less" && idx>=N-half) ts=Math.max(2,ts-1); }
+    const picked = fb && (fb.which||[]).length ? fb.which.some(w=>sameEx(w,orig)||sameEx(w,name)) : null;   // your picks, or the app's default
+    if(ts && fb && call!=="comp"){ if(fb.vol==="more" && (picked===null ? idx<half : picked)) ts=Math.min(8,ts+1); if(fb.vol==="less" && (picked===null ? idx>=N-half : picked)) ts=Math.max(2,ts-1); }
     let hs = ts && call==="comp" ? Math.min(ts,3) : ts;
-    if(hs && fb && call==="comp" && p.mine){ if(fb.vol==="more" && idx<2) hs=hs+1; if(fb.vol==="less" && !isCompound(name)) hs=2; }
+    if(hs && fb && call==="comp" && p.mine){ if(fb.vol==="more" && (picked===null ? idx<2 : picked)) hs=hs+1; if(fb.vol==="less" && (picked===null ? !isCompound(name) : picked)) hs=Math.max(2,hs-1); }
     if(dl) hs=Math.max(1, Math.round((hs||3)*0.6));
     if(cap && cap[orig]!=null){ hs=Math.min(hs||3, cap[orig]); if(ts) ts=Math.min(ts, cap[orig]); }
     const rx=rxFor(call, idx, hs, (p.mine||p.routine) ? name : null), st=recentStats(name, date);
-    let w=null, w2=null, txt, bw=false;
+    let w=null, w2=null, txt, bw=false, rel=null;
     let prog = p.mine && call!=="comp" && st && name===orig ? progression(st.last.top, fb && fb.feel) : null;
     if(prog && isAssisted(name)) prog=assistProg(st.last.top, fb && fb.feel);
     if(prog && dl){ const t=st.last.top; prog={w:t.w, reps:t.r, note: t.w>0 ? `Deload: same ${wDisp(name,t.w)}, fewer sets. Leave 3+ reps in the tank.` : "Deload: fewer sets, leave 3+ reps in the tank."}; }
@@ -1841,6 +1868,9 @@ function buildPlan(date, split, call){
     } else if(st && st.e1===0){
       bw=true; const r=Math.max(3, st.maxReps-rx.rir);
       txt=`${rx.kind==="top"?rx.back+1:rx.sets} × <b>${r}</b> @ bodyweight (add weight if that's easy)`;
+    } else if(!isAssisted(name) && (rel=relatedStats(name, date))){
+      w=wFor(rel.e1, rx.reps, rx.rir);
+      txt=`${rx.label} @ <b>${wDisp(name,w)}</b><div class="ls">First time logging this. Estimated from your ${rel.from}, so treat set 1 as a feeler and adjust.</div>`;
     } else {
       txt=`${rx.label}, pick a weight you could do ~${rx.reps+rx.rir} times`;
     }
@@ -3031,15 +3061,16 @@ function fbNote(fb, call, N, half, added){
   if(!fb) return "";
   const feel=(FEEL.find(x=>x[0]===fb.feel)||[])[1], parts=[];
   if(fb.vol==="moreEx") parts.push(added ? `added ${added}${fb.mus && MUS_LABEL[fb.mus] ? " for "+(fb.sub && SUB_LABEL[fb.sub] ? SUB_LABEL[fb.sub] : MUS_LABEL[fb.mus].toLowerCase()) : ""}` : "no extra exercise to add");
-  if(fb.vol==="lessEx") parts.push("dropped your last exercise (it's under ⇄ Swap)");
+  const W=(fb.which||[]).join(", ");
+  if(fb.vol==="lessEx") parts.push(fb.drop ? `dropped ${fb.drop} (it's under ⇄ Swap)` : "dropped your last exercise (it's under ⇄ Swap)");
   if(call==="comp"){
-    if(fb.vol==="more") parts.push("+1 set on your 2 main lifts");
-    if(fb.vol==="less") parts.push("accessories cut to 2 sets");
+    if(fb.vol==="more") parts.push(W ? `+1 set on ${W}` : "+1 set on your 2 main lifts");
+    if(fb.vol==="less") parts.push(W ? `−1 set on ${W}` : "accessories cut to 2 sets");
     if(fb.feel==="easy") parts.push("weights up about 2.5%");
     if(fb.feel==="much") parts.push("weights down about 5%");
   } else {
-    if(fb.vol==="more") parts.push(`+1 set on your first ${half} exercise${half===1?"":"s"}`);
-    if(fb.vol==="less") parts.push(`−1 set on your last ${half} exercise${half===1?"":"s"}`);
+    if(fb.vol==="more") parts.push(W ? `+1 set on ${W}` : `+1 set on your first ${half} exercise${half===1?"":"s"}`);
+    if(fb.vol==="less") parts.push(W ? `−1 set on ${W}` : `−1 set on your last ${half} exercise${half===1?"":"s"}`);
     if(fb.feel==="easy") parts.push("weights up");
     if(fb.feel==="much") parts.push("match last time instead of adding reps");
   }
@@ -3047,12 +3078,51 @@ function fbNote(fb, call, N, half, added){
   const said=[feel, want].filter(Boolean).join(", ");
   return said ? `Adjusted from your feedback (${said.toLowerCase()})${parts.length?": "+parts.join(", "):": no changes needed"}.` : "";
 }
+function noteLine(fb){ return fb && fb.note ? fb.note : "";
+}
+// "More sets on curls", "drop the leg extensions", "add a rear delt exercise": pull plain instructions out of the note.
+const sameEx=(a,b)=>normEx(a)===normEx(b) || String(a).toLowerCase()===String(b).toLowerCase();
+const NOTE_STOP=new Set(["barbell","dumbbell","dumbbells","db","cable","machine","seated","sitting","standing","single","the","a","an","of","on","with","ez","bar","kb","kettlebell","band","smith","weighted","assisted","my","to","and","for","more","less","sets","set"]);
+const noteWords = str => String(str||"").toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(Boolean).map(w=>w.replace(/(es|s)$/,""));
+// Exercises named in one phrase. A name only counts if no other exercise matches a superset of the same words,
+// so "shoulder fly" beats "incline fly", "bench and incline press" skips the shoulder press, and "curls" means every curl.
+function noteHits(clause, names){
+  const cw=new Set(noteWords(clause));
+  const M=names.map(n=>({n, w:[...new Set(noteWords(n).filter(w=>!NOTE_STOP.has(w)))].filter(w=>cw.has(w))})).filter(x=>x.w.length);
+  return M.filter(x=>!M.some(y=>y!==x && y.w.length>x.w.length && x.w.every(w=>y.w.includes(w)))).map(x=>x.n);
+}
+function parseNote(note, names){
+  const t=String(note||"").toLowerCase(); if(!t.trim()) return null;
+  const out={}, which=new Set();
+  // read each phrase on its own, so "shoulder felt tweaky" never turns into a request about shoulder press
+  let last=null; // "more sets on bench, incline press" carries the ask into the next phrase, "shoulder felt tweaky" doesn't
+  t.split(/[.;,!?\n]+|\bbut\b|\balso\b/).map(x=>x.trim()).filter(Boolean).forEach(c=>{
+    const hits=noteHits(c, names);
+    const own=/\b(drop|skip|remove|ditch|cut|get rid|no more|more|extra|another|add|added|increase|fewer|less|reduce|lower|sets?)\b/.test(c);
+    if(!own && hits.length && last && !/\b(felt|feel|feels|hurt|hurts|tweak|tweaky|sore|pain|ache|tight|was|is)\b/.test(c)){ if(last==="drop"){ if(!out.drop) out.drop=hits[0]; } else if(out.vol===last) hits.forEach(h=>which.add(h)); return; }
+    if(!own){ last=null; return; }
+    last=null;
+    if(/\b(drop|skip|remove|ditch|cut out|get rid of|no more)\b/.test(c) && hits.length && !out.drop){ out.drop=hits[0]; last="drop"; }
+    else if(/\b(more|extra|another|add(ed)?|increase)\b[^.]*\bsets?\b|\bsets?\b[^.]*\b(more|up)\b/.test(c)){ if(!out.vol || out.vol==="more"){ out.vol="more"; last="more"; hits.forEach(h=>which.add(h)); } }
+    else if(/\b(fewer|less|cut|reduce|lower)\b[^.]*\bsets?\b/.test(c)){ if(!out.vol || out.vol==="less"){ out.vol="less"; last="less"; hits.forEach(h=>which.add(h)); } }
+    else if(!out.vol && (/\b(add|another|extra|more|need)\b[^.]*\b(exercise|movement|move|work)\b/.test(c) || /\badd (a|an|some)\b/.test(c))){
+      const k=RT_CATS.find(k=>k.re.test(c)); out.vol="moreEx";
+      if(k){ const SUBK={side:["shoulders","side"], rear:["shoulders","rear"], pd:["back","lats"], row:["back","upper"]}[k.k]; if(SUBK){ out.mus=SUBK[0]; out.sub=SUBK[1]; } else if(MUS_LABEL[k.mus]) out.mus=k.mus; }
+    }
+  });
+  if(out.drop && !out.vol) out.vol="lessEx";
+  if(which.size && (out.vol==="more"||out.vol==="less")) out.which=[...which];
+  if(out.vol!=="lessEx") delete out.drop;
+  return Object.keys(out).length ? out : null;
+}
+function fbNames(date){ return [...new Set(liftEntries(date).map(e=>e.name))]; }
 function fbPreview(f){
   const bits=[];
-  if(f.vol==="more") bits.push("+1 set on your first exercises (heavy days: on your 2 main lifts)");
-  if(f.vol==="moreEx") bits.push("one more exercise, from your own first");
-  if(f.vol==="less") bits.push("−1 set on your last exercises (heavy days: accessories at 2 sets)");
-  if(f.vol==="lessEx") bits.push("your last exercise dropped (still under ⇄ Swap)");
+  const W=(f.which||[]).join(", ");
+  if(f.vol==="more") bits.push(W ? `+1 set on ${W}` : "+1 set on your first exercises (heavy days: on your 2 main lifts)");
+  if(f.vol==="moreEx") bits.push(f.mus && f.musPick ? `one more ${f.sub&&SUB_LABEL[f.sub]?SUB_LABEL[f.sub]:MUS_LABEL[f.mus].toLowerCase()} exercise` : "one more exercise, from your own first");
+  if(f.vol==="less") bits.push(W ? `−1 set on ${W}` : "−1 set on your last exercises (heavy days: accessories at 2 sets)");
+  if(f.vol==="lessEx") bits.push(f.drop ? `${f.drop} dropped (still under ⇄ Swap)` : "your last exercise dropped (still under ⇄ Swap)");
   if(f.feel==="easy") bits.push("heavier weights");
   if(f.feel==="much") bits.push("no rep increase, so you match last time");
   if(f.feel==="right"||f.feel==="tough") bits.push("the usual beat-last-time progression");
@@ -3072,6 +3142,15 @@ function renderFeedback(id, date){
     <label class="l" style="margin-top:14px">Next time?</label>
     ${sg?`<div class="sugl">💡 Suggested: <b>${VOL.find(x=>x[0]===sg.vol)[1]}</b>. ${esc(sg.why)}</div>`:""}
     <div class="seg2 fbv">${btns(VOL,"vol")}</div>
+    ${(()=>{ const names=fbNames(date), chip=(on,click,l)=>`<button type="button" class="${on?"on":""}" onclick="${click}">${esc(l)}</button>`;
+      if(f.vol==="more"||f.vol==="less") return `<div class="schq">Which ones? <span class="muted" style="font-weight:500">(optional, otherwise the app picks)</span></div><div class="chips fbw">${names.map(n=>chip((f.which||[]).some(w=>sameEx(w,n)), `fbWhich('${date}','${jsq(n)}')`, n)).join("")}</div>`;
+      if(f.vol==="lessEx") return `<div class="schq">Which one to drop? <span class="muted" style="font-weight:500">(optional, otherwise your last one)</span></div><div class="chips fbw">${names.map(n=>chip(f.drop&&sameEx(f.drop,n), `fbDrop('${date}','${jsq(n)}')`, n)).join("")}</div>`;
+      if(f.vol==="moreEx"){ const opts=[["chest",null,"Chest"],["back","lats","Lats"],["back","upper","Upper back"],["shoulders","side","Side delts"],["shoulders","rear","Rear delts"],["shoulders","front","Front delts"],["biceps",null,"Biceps"],["triceps",null,"Triceps"],["quads",null,"Quads"],["hams",null,"Hamstrings"],["glutes",null,"Glutes"],["calves",null,"Calves"],["abs",null,"Abs"]];
+        return `<div class="schq">For which muscle? <span class="muted" style="font-weight:500">(optional${f.mus&&!f.musPick?", the app picked the highlighted one":""})</span></div><div class="chips fbw">${opts.map(([m,sb,l])=>chip(f.mus===m && (f.sub||null)===sb, `fbMus('${date}','${m}','${sb||""}')`, l)).join("")}</div>`; }
+      return ""; })()}
+    <div class="schq">Notes for next time <span class="muted" style="font-weight:500">(optional)</span></div>
+    <textarea class="fbnote" id="fbNote_${id}" rows="2" maxlength="300" placeholder="e.g. more sets on curls, drop leg extensions, shoulder felt tweaky" onchange="fbSetNote('${date}', this.value)">${esc(f.note||"")}</textarea>
+    ${f.note && f.fromNote ? `<div class="sugl" style="margin-top:6px">📝 Got it from your note: ${esc(fbPreview({vol:f.vol, which:f.which, drop:f.drop, mus:f.mus, sub:f.sub, musPick:true}).replace(/^Next time: /,""))}</div>` : ""}
     <details class="which"><summary>Which one?</summary><ul>
       <li><b>More sets:</b> the muscles you worked still had more in them. You were done before you were tired.</li>
       <li><b>More exercises:</b> a muscle or angle felt left out (say, upper chest or rear delts), or you want some variety.</li>
@@ -3081,12 +3160,30 @@ function renderFeedback(id, date){
     <div class="hint">${f.feel||f.vol ? esc(fbPreview(f))+" This applies to your next "+esc(split)+" day." : "Your answer tunes the next "+esc(split)+" day: sets, and whether the weights go up."}</div>
   </div>`;
 }
+function saveFb(date, f, msg){
+  const n={...feedback}; if(!f.feel && !f.vol && !f.note) delete n[date]; else n[date]=f;
+  if(store(KEYS.fb,n)) feedback=n; if(view==="today") renderCall(); else renderLifts(); if(msg) toast(msg);
+}
+const fbBase = date => ({...(feedback[date]||{}), split:(lifts[date] && !Array.isArray(lifts[date]) && lifts[date].split) || splitFor(date)});
+function fbWhich(date, name){ const f=fbBase(date), w=(f.which||[]).filter(x=>!sameEx(x,name)); if(w.length===(f.which||[]).length) w.push(name); f.which=w.slice(0,12); if(!f.which.length) delete f.which; delete f.fromNote; saveFb(date, f); }
+function fbDrop(date, name){ const f=fbBase(date); f.drop = f.drop && sameEx(f.drop,name) ? undefined : name; if(!f.drop) delete f.drop; delete f.fromNote; saveFb(date, f); }
+function fbMus(date, m, sb){ const f=fbBase(date); if(f.mus===m && (f.sub||"")===sb && f.musPick){ delete f.mus; delete f.sub; delete f.musPick; } else { f.mus=m; if(sb) f.sub=sb; else delete f.sub; f.musPick=true; } delete f.fromNote; saveFb(date, f); }
+function fbSetNote(date, txt){
+  const f=fbBase(date), note=String(txt||"").trim().slice(0,300);
+  if(note) f.note=note; else delete f.note;
+  // Your note fills in anything you didn't pick yourself
+  const P=note ? parseNote(note, fbNames(date)) : null;
+  if(f.fromNote){ ["vol","which","drop","mus","sub","musPick"].forEach(k=>delete f[k]); delete f.fromNote; }
+  if(P && !f.vol){ Object.assign(f, P); if(P.mus) f.musPick=true; f.fromNote=true; }
+  else if(P && f.vol===P.vol){ if(P.which && !f.which) f.which=P.which; if(P.drop && !f.drop) f.drop=P.drop; }
+  saveFb(date, f, note ? (f.fromNote ? "Note saved. The app will use it" : "Note saved") : "Note cleared");
+}
 function setFb(date, key, v){
   const split=(lifts[date] && !Array.isArray(lifts[date]) && lifts[date].split) || splitFor(date);
   const f={...(feedback[date]||{}), split};
   f[key] = f[key]===v ? undefined : v;
-  if(key==="vol"){ delete f.mus; delete f.sub; if(f.vol==="moreEx"){ const sg=fbSuggest(date); if(sg && sg.mus){ f.mus=sg.mus; if(sg.sub) f.sub=sg.sub; } } }
-  if(!f.feel && !f.vol){ const n={...feedback}; delete n[date]; if(store(KEYS.fb,n)) feedback=n; }
+  if(key==="vol"){ delete f.mus; delete f.sub; delete f.musPick; delete f.which; delete f.drop; delete f.fromNote; if(f.vol==="moreEx"){ const sg=fbSuggest(date); if(sg && sg.mus){ f.mus=sg.mus; if(sg.sub) f.sub=sg.sub; } } }
+  if(!f.feel && !f.vol && !f.note){ const n={...feedback}; delete n[date]; if(store(KEYS.fb,n)) feedback=n; }
   else { const n={...feedback, [date]:f}; if(store(KEYS.fb,n)) feedback=n; }
   if(view==="today") renderCall(); else renderLifts();
   toast("Feedback saved"); checkBadges();
@@ -3114,7 +3211,7 @@ function renderPlan(a){
   el.innerHTML=`<div class="card plan">
     <label class="l">${a.call==="rest"?"Light session":call==="comp"?"Heavy session":"Hypertrophy session"} · ${esc(a.split)}</label>
     ${timeLine(form.date)}
-    <div class="src">${src}</div>${plan.fit?`<div class="src" style="margin-top:-4px">⏱ About ${plan.fit.est} min of lifting${plan.fit.capped||plan.fit.dropped.length?`, sized for your ${profile.sessMin}-min session`:""}${plan.fit.capped?`: fewer sets on ${plan.fit.capped} exercise${plan.fit.capped===1?"":"s"}`:""}${plan.fit.dropped.length?`${plan.fit.capped?",":":"} ${esc(plan.fit.dropped.join(", "))} moved to ⇄ Swap`:""}.${profile.warmIn===false?" Warm up first.":""}</div>`:""}${plan.deload?`<div class="src" style="color:var(--rest);margin-top:-4px">🔋 Deload week, day ${plan.deload.day}: about 60% of your usual sets, same weights.</div>`:""}${plan.fbNote?`<div class="src" style="color:var(--hyper);margin-top:-4px">${esc(plan.fbNote)}</div>`:""}
+    <div class="src">${src}</div>${plan.fit?`<div class="src" style="margin-top:-4px">⏱ About ${plan.fit.est} min of lifting${plan.fit.capped||plan.fit.dropped.length?`, sized for your ${profile.sessMin}-min session`:""}${plan.fit.capped?`: fewer sets on ${plan.fit.capped} exercise${plan.fit.capped===1?"":"s"}`:""}${plan.fit.dropped.length?`${plan.fit.capped?",":":"} ${esc(plan.fit.dropped.join(", "))} moved to ⇄ Swap`:""}.${profile.warmIn===false?" Warm up first.":""}</div>`:""}${plan.deload?`<div class="src" style="color:var(--rest);margin-top:-4px">🔋 Deload week, day ${plan.deload.day}: about 60% of your usual sets, same weights.</div>`:""}${plan.fbNote?`<div class="src" style="color:var(--hyper);margin-top:-4px">${esc(plan.fbNote)}</div>`:""}${plan.fb && plan.fb.note?`<div class="src" style="margin-top:-4px">📝 Your note from last time: “${esc(plan.fb.note)}”</div>`:""}
     ${noStretch.length?`<div class="src" style="color:var(--hyper);margin-top:-2px">↔ No stretch-position move for ${noStretch.map(m=>MUS_LABEL[m].toLowerCase()).join(" or ")} today. Studies suggest loading a muscle while it's stretched adds growth, so consider swapping one exercise for ${noStretch.map(stretchSug).join("; or ")}. ⇄ Swap lists stretch options first.</div>`:""}
     ${plan.items.length>1?`<div class="ordbar"><button type="button" class="ordb freak" onclick="askFreaky()">🎲 Get freaky</button><button type="button" class="ordb ${reorderOn?"on":""}" onclick="toggleReorder()">${reorderOn?"✓ Done":"↕ Reorder"}</button>${plan.ordered?`<button type="button" class="ordb" onclick="resetOrder()">↺ Reset order</button>`:""}</div>`:""}
     ${(()=>{ if(!plan.ordered) return ""; const main = call==="comp" ? plan.items.findIndex(it=>it.rx && it.rx.kind==="top") : -1;
@@ -3604,7 +3701,10 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object"){ L[k]={...d.logs[k]}; if(!(typeof L[k].bw==="number" && L[k].bw>0 && L[k].bw<1000)) delete L[k].bw; } });
     const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1}; if(typeof e.forPlan==="string") o.forPlan=e.forPlan.slice(0,60); if(typeof e.t==="number") o.t=e.t; return o; }); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
     const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false, days:(Number(d.profile.days)>=2&&Number(d.profile.days)<=7)?Number(d.profile.days):undefined, sessMin:(Number(d.profile.sessMin)>=30&&Number(d.profile.sessMin)<=180)?Number(d.profile.sessMin):undefined, warmIn:d.profile.warmIn!==false, weekdays:(()=>{ const W=d.profile.weekdays; if(!W || typeof W!=="object") return undefined; const o={}; for(let w=0;w<7;w++){ const v=W[w]; o[w] = typeof v==="string" && v.length<=30 ? v : "rest"; } return o; })(), musMap:(()=>{ const o={}, M=d.profile.musMap; if(M && typeof M==="object") Object.keys(M).slice(0,300).forEach(k=>{ const v=M[k]; if(!v || typeof v!=="object" || k.length>60) return; if(v.skip) o[k]={skip:true}; else if(MUS_LABEL[v.p]) o[k]={p:v.p, h:Array.isArray(v.h)?v.h.filter(x=>MUS_LABEL[x]&&x!==v.p).slice(0,4):[]}; }); return o; })()} : profile;
-    const FB={}; if(d.feedback && typeof d.feedback==="object") Object.keys(d.feedback).filter(okDate).forEach(k=>{ const f=d.feedback[k]; if(f && typeof f==="object"){ const o={}; if(FEEL.some(x=>x[0]===f.feel)) o.feel=f.feel; if(VOL.some(x=>x[0]===f.vol)) o.vol=f.vol; if(typeof f.split==="string") o.split=f.split.slice(0,30); if(o.vol==="moreEx" && MUS_LABEL[f.mus]){ o.mus=f.mus; if(SUB_LABEL[f.sub]) o.sub=f.sub; } if(o.feel||o.vol) FB[k]=o; } });
+    const FB={}; if(d.feedback && typeof d.feedback==="object") Object.keys(d.feedback).filter(okDate).forEach(k=>{ const f=d.feedback[k]; if(f && typeof f==="object"){ const o={}; if(FEEL.some(x=>x[0]===f.feel)) o.feel=f.feel; if(VOL.some(x=>x[0]===f.vol)) o.vol=f.vol; if(typeof f.split==="string") o.split=f.split.slice(0,30); if(o.vol==="moreEx" && MUS_LABEL[f.mus]){ o.mus=f.mus; if(SUB_LABEL[f.sub]) o.sub=f.sub; if(f.musPick) o.musPick=true; }
+          if(Array.isArray(f.which)) { const w=f.which.filter(x=>typeof x==="string").map(x=>x.slice(0,60)).slice(0,12); if(w.length) o.which=w; }
+          if(typeof f.drop==="string") o.drop=f.drop.slice(0,60); if(typeof f.note==="string" && f.note.trim()) o.note=f.note.slice(0,300); if(f.fromNote) o.fromNote=true;
+          if(o.feel||o.vol||o.note) FB[k]=o; } });
     const SS={}; if(d.sessions && typeof d.sessions==="object") Object.keys(d.sessions).filter(okDate).forEach(k=>{ const v=d.sessions[k]; if(v && typeof v.start==="number"){ SS[k]={start:v.start}; if(typeof v.end==="number" && v.end>v.start) SS[k].end=v.end; else SS[k].end=v.start+60*60e3; } });
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X) || !store(KEYS.fb,FB) || !store(KEYS.sess,SS)) return;
     logs=L; lifts=X; feedback=FB; sessT=SS; syncTimerBar();

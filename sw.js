@@ -1,5 +1,5 @@
 // Bump VERSION whenever any app file changes so phones pick up the update.
-const VERSION = "tc-1.29.2";
+const VERSION = "tc-1.30.1";
 const FILES = [
   "./", "index.html", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png",
