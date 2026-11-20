@@ -819,7 +819,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.31.0";
+const APP_VERSION = "1.31.1";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -1909,12 +1909,11 @@ function typicalSets(name, before){   // working sets you did last time
 // Double progression on your own exercises: same weight, one more rep than last time.
 // Hit 15 reps and the weight goes up while the reps drop back.
 function progression(top, feel){
-  const w=top.w, r=top.r;
-  const inc = U()==="kg" ? (w>=20?2.5:1.25) : (w>=45?5:2.5);
+  const w=top.w, r=top.r, fixed=isFixedBar(top.name);
+  const inc = fixed ? (U()==="kg"?5:10) : U()==="kg" ? (w>=20?2.5:1.25) : (w>=45?5:2.5);
   if(feel==="much") return {w, reps:r, note: w>0 ? `Last time felt like too much: match ${fmtW(w)}×${r} today.` : `Last time felt like too much: match ${r} reps today.`};
   if(feel==="easy" && w>0){ const nw=Math.round((w+inc)*100)/100; return {w:nw, reps:r, note:`Last time felt too easy: up to ${nw} ${U()} for ${r}.`}; }
   if(w>0 && r>=15){
-    const inc = U()==="kg" ? (w>=20?2.5:1.25) : (w>=45?5:2.5);
     const nw=Math.round((w+inc)*100)/100, nr=Math.max(6, r-4);
     return {w:nw, reps:nr, note:`You hit ${r} last time. Go up to ${nw} ${U()} and work back up from ${nr}.`};
   }
@@ -1947,6 +1946,7 @@ function buildPlan(date, split, call){
     } else if(st && st.e1>0){
       w=wFor(st.e1, rx.reps, rx.rir);
       if(fb && call==="comp" && p.mine){ if(fb.feel==="easy") w=roundW(w*1.025); if(fb.feel==="much") w=roundW(w*0.95); }
+      if(isFixedBar(name)){ const st2=U()==="kg"?5:10; w=Math.max(st2, Math.round(w/st2)*st2); }
       if(rx.kind==="top"){ w2=roundW(w*0.88); txt=`Top set 1×5 @ <b>${wDisp(name,w)}</b>, then ${rx.back}×6–8 @ <b>${wDisp(name,w2)}</b>`; }
       else txt=`${rx.label} @ <b>${wDisp(name,w)}</b>`;
     } else if(st && st.e1===0){
@@ -1958,7 +1958,7 @@ function buildPlan(date, split, call){
     } else {
       txt=`${rx.label}, pick a weight you could do ~${rx.reps+rx.rir} times`;
     }
-    if(w>0 && barKind(name)) txt+=`<div class="ls">Includes the bar (${barKind(name)==="ez" ? (U()==="kg"?"EZ bar ~10 kg":"EZ bar ~25 lb") : (U()==="kg"?"20 kg":"45 lb")})</div>`;
+    if(w>0 && barKind(name) && barKind(name)!=="fixed") txt+=`<div class="ls">Includes the bar (${barKind(name)==="ez" ? (U()==="kg"?"EZ bar ~10 kg":"EZ bar ~25 lb") : (U()==="kg"?"20 kg":"45 lb")})</div>`;
     if(p.added && orig===p.added) txt+=`<div class="ls" style="color:var(--ok)">Added from your feedback</div>`;
     return {name, orig, rx, w, bw, txt, st};
   });
@@ -3544,14 +3544,20 @@ function delDay(){
 function openLiftDay(d){ liftDate=d; editId=null; planCtx=null; renderLifts(); window.scrollTo({top:document.getElementById("dayLifts").offsetTop-120, behavior:"smooth"}); }
 document.getElementById("liftDate").addEventListener("change",e=>{ if(e.target.value){ liftDate=e.target.value; planCtx=null; editId=null; renderLifts(); } });
 // Barbell lifts: log the total, bar included. A standard Olympic bar is 45 lb (20 kg); EZ bars run lighter.
+// Fixed-weight barbells (the preloaded ones on a rack): log the number on the bar, no plates. They step up in 10 lb / 5 kg.
+function isFixedBar(name){ const k=String(name||"").toLowerCase(), F=(profile&&profile.fixedBars)||{}; if(k in F) return F[k]===true; return /\bfixed\b|pre-?loaded|pro.?style/i.test(k); }
+function setFixedBar(on){ const n=document.getElementById("exName").value; if(!profile||!n.trim()) return; profile.fixedBars={...(profile.fixedBars||{}), [n.toLowerCase()]:on}; store(KEYS.profile, profile); plateKey=""; setWLabel(); toast(on?`${n}: fixed-weight bar, no plates`:`${n}: plate-loaded bar`); }
 function barKind(name){
   const n=String(name||""); if(!n.trim() || isAssisted(n)) return null;
+  const b=barKind0(n); return b && isFixedBar(n) ? "fixed" : b;
+}
+function barKind0(n){
   if(/\bez\b|ez-bar|curl bar/i.test(n)) return "ez";
   if(/dumbbell|\bdbs?\b|machine|smith|cable|kettlebell|\bkb\b|trap bar|hex bar|band|landmine/i.test(n)) return null;
   const k=exKey(n); if(k) return EX[k].eq.includes("barbell") ? "bar" : null;
   return /barbell|\bbb\b|bench press|back squat|front squat|^squat|deadlift|overhead press|military press|close.?grip bench|pendlay|hip thrust|good morning/i.test(n) ? "bar" : null;
 }
-function barHintText(name){ const b=barKind(name); return b ? `Total weight, bar included (${b==="ez" ? (U()==="kg"?"EZ bar ~10 kg":"EZ bar ~25 lb") : (U()==="kg"?"20 kg bar":"45 lb bar")}).` : ""; }
+function barHintText(name){ const b=barKind(name); if(b==="fixed") return "Fixed-weight bar: the number on the bar."; return b ? `Total weight, bar included (${b==="ez" ? (U()==="kg"?"EZ bar ~10 kg":"EZ bar ~25 lb") : (U()==="kg"?"20 kg bar":"45 lb bar")}).` : ""; }
 // Barbell lifts: "how much weight is on the bar?" Tap the plates on one side; we double them, add the bar,
 // and that total is what gets logged. Typing a total still works, and the plates update to match.
 let plateCnt={}, plateBarW=null, plateFor="";
@@ -3579,6 +3585,7 @@ function renderPlates(){
   const name=document.getElementById("exName").value, kind=barKind(name);
   plateKey=name+"|"+document.getElementById("wIn").value;
   box.classList.toggle("hide",!kind); if(!kind) return;
+  if(kind==="fixed"){ box.innerHTML=`<label class="l" style="margin:0">Fixed-weight bar</label><div class="hint" style="margin-top:2px">Log the number on the bar, no math needed. These usually go up in ${U()==="kg"?"5 kg":"10 lb"} steps, so that's how the app progresses you.</div><button type="button" class="linkbtn" style="margin-top:8px" onclick="setFixedBar(false)">Actually it takes plates</button>`; return; }
   const u=U(), bw=curBar(), w=Number(document.getElementById("wIn").value)||0, side=sideSum();
   const exact = !w || Math.abs(plateTotal()-w)<0.01;
   const used=PLATES().filter(p=>plateCnt[p]);
@@ -3588,7 +3595,8 @@ function renderPlates(){
     <div class="pg">${PLATES().map(p=>`<div class="pt ${plateCnt[p]?"on":""}"><div class="pw">${p}</div><div class="pc"><button type="button" aria-label="One less ${p}" onclick="plateAdd(${p},-1)">−</button><b>${plateCnt[p]||0}</b><button type="button" aria-label="One more ${p}" onclick="plateAdd(${p},1)">+</button></div></div>`).join("")}</div>
     <div class="tot">${used.length ? `${used.map(p=>plateCnt[p]>1?`${plateCnt[p]}×${p}`:p).join(" + ")} each side + ${bw} bar = <b style="font-size:18px">${fmtW(plateTotal())} ${u}</b>` : `Just the bar: <b style="font-size:18px">${fmtW(bw)} ${u}</b>`}
     ${!exact ? `<div class="muted" style="margin-top:4px">You typed ${fmtW(w)} ${u}. Closest with these plates is ${fmtW(plateTotal())}. Your typed weight is what gets logged.</div>` : ""}
-    ${used.length ? ` <button type="button" class="linkbtn" style="margin-left:6px" onclick="plateClear()">Clear</button>` : ""}</div>`;
+    ${used.length ? ` <button type="button" class="linkbtn" style="margin-left:6px" onclick="plateClear()">Clear</button>` : ""}</div>
+    <div class="hint" style="margin-top:10px">Using a fixed-weight barbell (no plates)? <button type="button" class="linkbtn" onclick="setFixedBar(true)">Mark it as fixed</button></div>`;
 }
 let plateKey="";
 function setWLabel(){ const n=document.getElementById("exName").value; if(plateKey===n+"|"+document.getElementById("wIn").value) return; if(plateFor!==n){ plateFor=n; plateBarW=null; } platesFromW(); renderPlates(); const a=isAssisted(document.getElementById("exName").value); document.getElementById("wLbl").innerHTML = `${a?"Assist":"Weight"} (<span class="U">${U()}</span>)`; }
@@ -3836,7 +3844,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const okDate=k=>/^\d{4}-\d{2}-\d{2}$/.test(k);
     const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object"){ L[k]={...d.logs[k]}; if(!(typeof L[k].bw==="number" && L[k].bw>0 && L[k].bw<1000)) delete L[k].bw; } });
     const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1}; if(typeof e.forPlan==="string") o.forPlan=e.forPlan.slice(0,60); if(typeof e.t==="number") o.t=e.t; return o; }); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
-    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false, days:(Number(d.profile.days)>=2&&Number(d.profile.days)<=7)?Number(d.profile.days):undefined, sessMin:(Number(d.profile.sessMin)>=30&&Number(d.profile.sessMin)<=180)?Number(d.profile.sessMin):undefined, warmIn:d.profile.warmIn!==false, weekdays:(()=>{ const W=d.profile.weekdays; if(!W || typeof W!=="object") return undefined; const o={}; for(let w=0;w<7;w++){ const v=W[w]; o[w] = typeof v==="string" && v.length<=30 ? v : "rest"; } return o; })(), musMap:(()=>{ const o={}, M=d.profile.musMap; if(M && typeof M==="object") Object.keys(M).slice(0,300).forEach(k=>{ const v=M[k]; if(!v || typeof v!=="object" || k.length>60) return; if(v.skip) o[k]={skip:true}; else if(MUS_LABEL[v.p]) o[k]={p:v.p, h:Array.isArray(v.h)?v.h.filter(x=>MUS_LABEL[x]&&x!==v.p).slice(0,4):[]}; }); return o; })()} : profile;
+    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false, days:(Number(d.profile.days)>=2&&Number(d.profile.days)<=7)?Number(d.profile.days):undefined, sessMin:(Number(d.profile.sessMin)>=30&&Number(d.profile.sessMin)<=180)?Number(d.profile.sessMin):undefined, warmIn:d.profile.warmIn!==false, weekdays:(()=>{ const W=d.profile.weekdays; if(!W || typeof W!=="object") return undefined; const o={}; for(let w=0;w<7;w++){ const v=W[w]; o[w] = typeof v==="string" && v.length<=30 ? v : "rest"; } return o; })(), musMap:(()=>{ const o={}, M=d.profile.musMap; if(M && typeof M==="object") Object.keys(M).slice(0,300).forEach(k=>{ const v=M[k]; if(!v || typeof v!=="object" || k.length>60) return; if(v.skip) o[k]={skip:true}; else if(MUS_LABEL[v.p]) o[k]={p:v.p, h:Array.isArray(v.h)?v.h.filter(x=>MUS_LABEL[x]&&x!==v.p).slice(0,4):[]}; }); return o; })(), fixedBars:(()=>{ const o={}, F=d.profile.fixedBars; if(F && typeof F==="object") Object.keys(F).slice(0,100).forEach(k=>{ if(k.length<=60 && (F[k]===true||F[k]===false)) o[k]=F[k]; }); return o; })()} : profile;
     const FB={}; if(d.feedback && typeof d.feedback==="object") Object.keys(d.feedback).filter(okDate).forEach(k=>{ const f=d.feedback[k]; if(f && typeof f==="object"){ const o={}; if(FEEL.some(x=>x[0]===f.feel)) o.feel=f.feel; if(VOL.some(x=>x[0]===f.vol)) o.vol=f.vol; if(typeof f.split==="string") o.split=f.split.slice(0,30); if(o.vol==="moreEx" && MUS_LABEL[f.mus]){ o.mus=f.mus; if(SUB_LABEL[f.sub]) o.sub=f.sub; if(f.musPick) o.musPick=true; }
           if(Array.isArray(f.which)) { const w=f.which.filter(x=>typeof x==="string").map(x=>x.slice(0,60)).slice(0,12); if(w.length) o.which=w; }
           if(typeof f.drop==="string") o.drop=f.drop.slice(0,60); if(typeof f.note==="string" && f.note.trim()) o.note=f.note.slice(0,300); if(f.fromNote) o.fromNote=true;
