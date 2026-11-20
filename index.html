@@ -306,6 +306,9 @@
   .bwbox input::-webkit-outer-spin-button,.bwbox input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .bwnote{font-size:13.5px;line-height:1.45;margin-top:10px;color:#d6d9dd}
   .sgx{margin-bottom:12px}
+  .rtfile{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:8px 14px;font:600 13.5px Inter;color:var(--text);cursor:pointer;margin:0 0 10px;background:var(--panel2)}
+  .rtfile input{display:none}
+  .rtn span{width:auto!important;min-width:16px}
   .wz{margin:2px 0 12px}.wzbar{height:5px;background:#22262b;border-radius:3px;overflow:hidden}.wzbar i{display:block;height:100%;background:var(--accent);transition:width .25s}
   .wzstep{font:600 12px Inter;color:var(--faint);margin-top:6px;letter-spacing:.06em;text-transform:uppercase}
   .wzq{font-family:"Barlow Condensed";font-size:28px;font-weight:800;line-height:1.05;margin:2px 0 14px}
@@ -632,7 +635,7 @@
   </div></div>
   <div class="slide" data-s="6"><div class="card">
     <div class="wzq">Pick your split</div>
-    <button type="button" class="rtbtn" onclick="openRoutine('su')">📋 Build from my routine</button>
+    <button type="button" class="rtbtn" onclick="openRoutine('su')">📋 Upload an existing routine</button>
     <div id="suRoutine" class="hide"></div>
     <div id="suSuggest"></div>
     <details class="which" id="suMore"><summary>Other splits, or edit the days</summary>
@@ -682,8 +685,9 @@
   </div>
   <div class="card">
     <label class="l">Your split</label>
-    <button type="button" class="rtbtn" onclick="openRoutine('st')">📋 Build from my routine</button>
+    <button type="button" class="rtbtn" onclick="openRoutine('st')">📋 Upload an existing routine</button>
     <div id="stRoutine" class="hide"></div>
+    <div id="stWeekly"></div>
     <div id="stSuggest"></div>
     <div class="chips" id="stPresets" style="margin-bottom:12px"></div>
     <div id="stSplit"></div>
@@ -762,7 +766,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.25.2";
+const APP_VERSION = "1.26.0";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -1010,8 +1014,13 @@ function trainStreak(date){
   return n;
 }
 const dayPlan = () => (prefs.dayPlan && typeof prefs.dayPlan==="object") ? prefs.dayPlan : {};
+// Optional fixed weekly schedule from an uploaded routine ("Monday chest"): {0..6: split name | "rest"}.
+const wkMap = () => (profile && profile.weekdays && typeof profile.weekdays==="object") ? profile.weekdays : null;
+const wdOf = d => new Date(d+"T12:00:00").getDay();
+function wkSplit(d){ const M=wkMap(); if(!M) return null; const v=M[wdOf(d)]; return v && v!=="rest" && SPLIT().includes(v) ? v : null; }
+function wkRest(d){ const M=wkMap(); if(!M) return false; const v=M[wdOf(d)]; return !v || v==="rest"; }
 function pinnedSplit(d){ const p=dayPlan()[d]; return p && SPLIT().includes(p) ? p : null; }
-function plannedSplit(d){ return pinnedSplit(d) || nextSplit(d); }
+function plannedSplit(d){ return pinnedSplit(d) || wkSplit(d) || nextSplit(d); }
 function nextSplit(date){
   const S=SPLIT();
   const days=[...new Set([...Object.keys(logs), ...Object.keys(lifts)])].filter(k=>k<date).sort().reverse();
@@ -1065,6 +1074,7 @@ function assess(f){
   const streak=trainStreak(f.date);
   let forceRest=false;
   if(isOffDay(f.date)){ forceRest=true; why.push(["Planned day off","Rest",""]); }
+  else if(wkRest(f.date) && !pinnedSplit(f.date)){ forceRest=true; why.push(["Rest day on your weekly schedule","Rest",""]); }
   if(streak>=6){ forceRest=true; why.push([streak+" days straight training","Rest due","neg"]); }
   else if(streak>=4){ s-=10; why.push([streak+" days straight training","−10","neg"]); }
   const prev=sleepAvg(f.date,3); const all=[h,...prev];
@@ -1075,7 +1085,7 @@ function assess(f){
   s=Math.max(0,Math.min(100,Math.round(s)));
   const G=goal();
   let call;
-  const restTmr = !isOffDay(f.date) && f.date===localDate(new Date()) && (isOffDay(shift(f.date,1)) || restPlannedOn(shift(f.date,1)));
+  const restTmr = !isOffDay(f.date) && f.date===localDate(new Date()) && (isOffDay(shift(f.date,1)) || wkRest(shift(f.date,1)) || restPlannedOn(shift(f.date,1)));
   if(restTmr) why.push(["Rest day tomorrow","Heavy bar −4","pos"]);
   if(forceRest || s<G.rest || (f.sore===5 && f.energy<=2)) call="rest";
   else if(s>=G.heavy-(restTmr?4:0) && f.sore<=3) call="comp";
@@ -2304,21 +2314,56 @@ const RT_CATS=[
   {k:"arms",  re:/\barms?\b/, lbl:"arms", mus:"biceps", pool:["Barbell Curl","Tricep Pushdown","DB Hammer Curl","Overhead Tricep Extension"]}
 ];
 const NUMW={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,a:1,an:1,single:1,couple:2,pair:2};
+const WKIDX={sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6};
+const WKNAME=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+// "Monday chest", "Tue: legs", "Wednesday back and biceps", "Thursday push", "Saturday rest".
+// A day named only by muscles gets a sensible number of exercises for each.
+function dayDefaults(text){
+  const t=String(text||"").toLowerCase().replace(/\b(day|days|workout|session|focus|the|training|lifting)\b/g," ");
+  if(/\b(rest|off|recovery|none|nothing|free)\b/.test(t)) return "rest";
+  const parts=t.split(/\s*(?:,|;|&|\+|\/|\band\b|\bw\/|\bwith\b)\s*/).map(x=>x.trim()).filter(x=>/[a-z]/.test(x));
+  if(!parts.length) return null;
+  if(parts.every(p=>/\b(cardio|run|running|jog|conditioning|hiit|swim|bike|walk|hike|stairs?)\b/.test(p))) return "cardio";
+  const combo=parts.length>1, out=[];
+  const P={legs:[["quad",2],["ham",2],["glute",1],["calf",1]], legsC:[["quad",2],["ham",1],["calf",1]], push:[["chest",3],["sh",2],["tri",2]],
+    pull:[["row",2],["pd",2],["rear",1],["bi",2]], upper:[["chest",2],["row",1],["pd",1],["sh",2],["tri",1],["bi",1]],
+    full:[["quad",1],["ham",1],["chest",1],["row",1],["pd",1],["sh",1],["abs",1]], arms:[["bi",3],["tri",3]]};
+  const ALONE={chest:[["chest",4]], back:[["row",2],["pd",2]], sh:[["sh",3],["rear",1]], bi:[["bi",3]], tri:[["tri",3]], quad:[["quad",4]], ham:[["ham",3]],
+    glute:[["glute",4]], calf:[["calf",2]], abs:[["abs",3]], rear:[["rear",2]], add:[["add",2]], abd:[["abd",2]], trap:[["trap",2]], row:[["row",3]], pd:[["pd",3]], arms:P.arms, legs:P.legs};
+  const SMALL=new Set(["bi","tri","calf","abs","rear","add","abd","trap"]);
+  for(const q of parts){
+    if(/\b(cardio|run|conditioning|hiit)\b/.test(q)) continue;
+    if(/\bfull\b|\btotal body\b/.test(q)){ out.push(...P.full); continue; }
+    if(/\bupper\b/.test(q)){ out.push(...P.upper); continue; }
+    if(/\b(lower|legs?)\b/.test(q)){ out.push(...(combo?P.legsC:P.legs)); continue; }
+    if(/\bpush\b/.test(q)){ out.push(...P.push); continue; }
+    if(/\bpull\b/.test(q) && !/pull ?-?(downs?|ups?)/.test(q)){ out.push(...P.pull); continue; }
+    const c=RT_CATS.find(c=>c.re.test(q)); if(!c) continue;
+    if(c.k==="arms"){ out.push(...P.arms); continue; }
+    if(c.k==="back"){ out.push(...(combo?[["row",2],["pd",1]]:ALONE.back)); continue; }
+    if(!combo && ALONE[c.k]){ out.push(...ALONE[c.k]); continue; }
+    out.push([c.k, SMALL.has(c.k)?2:3]);
+  }
+  if(!out.length) return null;
+  const m=new Map(); out.forEach(([k,n])=>m.set(k,(m.get(k)||0)+n));
+  return [...m].map(([cat,n])=>({cat, n:Math.min(6,n), auto:true}));
+}
 function parseRoutine(text){
   const days=[]; let cur=null;
-  const newDay=name=>{ cur={name:name||"", items:[]}; days.push(cur); };
+  const newDay=(name,wk)=>{ cur={name:name||"", items:[]}; if(wk!=null) cur.wk=wk; days.push(cur); };
   String(text||"").replace(/\r/g,"").split("\n").forEach(raw=>{
     let line=raw.trim().replace(/^[-•*·]+\s*/,"");
     if(!line){ if(cur && cur.items.length) cur=null; return; }
     const low=line.toLowerCase();
     const head=low.match(/^(day\s*\d+|mon(day)?|tue(s|sday)?|wed(nesday)?|thu(rs|rsday)?|fri(day)?|sat(urday)?|sun(day)?)\b\s*[:\-–]?\s*(.*)$/);
     if(head || /:\s*$/.test(line)){
-      const rest = head ? line.slice(line.length-head[head.length-1].length).trim() : line.replace(/:\s*$/,"").trim();
-      newDay(head ? rest.replace(/^[:\-–]\s*/,"") : rest);
-      if(head && rest && /\d/.test(rest)) { cur.name=""; addLine(rest); }   // "Day 1: 3 chest"
+      const rest = (head ? line.slice(line.length-head[head.length-1].length).trim() : line.replace(/:\s*$/,"").trim()).replace(/^[:\-–]\s*/,"");
+      const wk = head && WKIDX[head[1].slice(0,3)]!=null ? WKIDX[head[1].slice(0,3)] : null;
+      newDay(rest, wk);
+      if(head && rest && /\d/.test(rest)) { cur.name=""; rest.split(/\s*[,;]\s*/).forEach(x=>x && addLine(x)); }   // "Monday: 3 chest, 2 triceps"
       return;
     }
-    addLine(line);
+    line.split(/\s*;\s*|\s*,\s*(?=\d|one|two|three|four|five|six)/i).forEach(x=>x && addLine(x));
     function addLine(l){
       if(!cur) newDay("");
       const ll=l.toLowerCase();
@@ -2332,10 +2377,11 @@ function parseRoutine(text){
       const leftover=RT_CATS.reduce((t,c)=>t.replace(new RegExp(c.re.source,"g")," "), rest).replace(/\b(side|front|upper|lower|inner|outer|mid|heavy|light|focus|work|and|for|the|day|isolation|compound)\b|[&+,\/()]/g," ").replace(/[^a-z]/g,"");
       const cat=!sr && leftover.length<=2 && RT_CATS.find(c=>c.re.test(rest));
       if(cat) cur.items.push({cat:cat.k, n:Math.max(1,Math.min(6,n||1)), txt:l});
-      else { const nm=l.replace(/(\d+)\s*(?:x|×|sets? of)\s*(\d+).*/i,"").replace(/^\d+\s*x?\s+/,"").replace(/[\s:\-–]+$/,"").trim(); if(/[a-z]/i.test(nm)) cur.items.push({ex:canonName(nm), sets: sr?Math.min(10,+sr[1]):(n&&n<=10?n:null), txt:l}); }
+      else { const nm=l.replace(/(\d+)\s*(?:x|×|sets? of)\s*(\d+).*/i,"").replace(/^\d+\s*x?\s+/,"").replace(/[\s:\-–]+$/,"").trim(); if(/[a-z]/i.test(nm)) cur.items.push({ex:exKey(nm)||canonName(nm), sets: sr?Math.min(10,+sr[1]):(n&&n<=10?n:null), txt:l}); }
     }
   });
-  return days.filter(d=>d.items.length).slice(0,10);
+  days.forEach(d=>{ if(d.items.length) return; const dd=dayDefaults(d.name); if(dd==="rest") d.rest=true; else if(dd==="cardio") d.cardio=true; else if(dd) d.items=dd; });
+  return days.filter(d=>d.items.length || d.rest || d.cardio).slice(0,14);
 }
 function pickFromPool(cat, n, taken, used){
   const c=RT_CATS.find(x=>x.k===cat); const low=new Set(taken.map(normEx));
@@ -2362,37 +2408,55 @@ function bestType(names){
   return best;
 }
 function buildRoutine(text){
-  const days=parseRoutine(text), used={};
-  return days.map(d=>{
+  const all=parseRoutine(text), used={}, days=all.filter(d=>!d.rest && !d.cardio);
+  const R=days.map(d=>{
     const ex=[], info=[];
     d.items.forEach(it=>{
       if(it.ex){ if(!ex.some(x=>normEx(x)===normEx(it.ex))){ ex.push(it.ex); info.push({name:it.ex, from:"your pick", mus:primaryMus(it.ex)[0], w:1}); used[it.ex]=(used[it.ex]||0)+1; } return; }
       const c=RT_CATS.find(x=>x.k===it.cat), got=pickFromPool(it.cat, it.n, ex, used);
       got.forEach(g=>{ ex.push(g); used[g]=(used[g]||0)+1; info.push({name:g, from:c.lbl, mus:c.mus, w:1}); });
     });
-    const label=d.name && !/^day\s*\d+$/i.test(d.name) ? d.name.slice(0,30) : dayLabel(info);
-    return {name:label, type:DAYTYPES[label] ? label : bestType(ex), ex:ex.slice(0,12), info:info.slice(0,12)};
+    const raw=d.name && !/^day\s*\d+$/i.test(d.name) ? d.name.slice(0,30) : dayLabel(info);
+    const label = d.items.some(it=>it.auto) ? raw.replace(/\s+and\s+/gi," & ").replace(/\b[a-z]/g,c=>c.toUpperCase()) : raw;
+    const o={name:label, type:DAYTYPES[label] ? label : bestType(ex), ex:ex.slice(0,12), info:info.slice(0,12)}; if(d.wk!=null) o.wk=d.wk; return o;
   }).filter(d=>d.ex.length);
+  R.rests=all.filter(d=>d.rest).map(d=>d.wk); R.cardio=all.filter(d=>d.cardio).map(d=>({wk:d.wk, name:d.name}));
+  return R;
 }
 let rtPreview=null;
 function openRoutine(prefix){
   const el=document.getElementById(prefix+"Routine"); el.classList.toggle("hide"); if(el.classList.contains("hide")) return;
-  el.innerHTML=`<div class="rtbox"><label class="l" for="${prefix}RtText">Paste or type your normal week</label>
-    <textarea id="${prefix}RtText" rows="9" placeholder="3 chest&#10;2 shoulders&#10;2 biceps&#10;&#10;2 rowing&#10;2 pulldowns&#10;1 rear delts&#10;2 triceps&#10;&#10;Bench Press 4x8&#10;Incline DB Press 3x10"></textarea>
-    <div class="hint">One day per block, with a blank line between days. Write how many exercises per muscle ("3 chest", "two biceps", "1 rear delts"), or exercise names (with sets like 4x8 if you want). Headings like "Day 1:" or "Monday" work too.</div>
+  el.innerHTML=`<div class="rtbox"><label class="l" for="${prefix}RtText">Paste, type or upload your routine</label>
+    <label class="rtfile">📄 Choose a text file<input type="file" accept=".txt,.text,.md,.csv,text/plain" onchange="rtFile(this,'${prefix}')"></label>
+    <textarea id="${prefix}RtText" rows="9" placeholder="Monday chest&#10;Tuesday legs&#10;Wednesday back and biceps&#10;Thursday shoulders&#10;Friday arms&#10;Saturday rest&#10;&#10;…or by day, with counts or exercises:&#10;3 chest&#10;2 shoulders&#10;Barbell Bench Press 4x8"></textarea>
+    <div class="hint">Any of these work:
+      <ul style="margin:6px 0 0;padding-left:18px"><li>One line per day: "Monday chest", "Tuesday legs", "Wednesday back and biceps", "Saturday rest".</li>
+      <li>Exercise counts per muscle ("3 chest", "two biceps", "1 rear delts"), with a blank line between days.</li>
+      <li>Exercise names, with sets like 4x8 if you want.</li></ul>
+      Have it in Notes or a doc? Copy and paste it here, or save it as a text file and choose it above.</div>
     <button class="btn" style="height:46px;font-size:15px;margin-top:10px" onclick="previewRoutine('${prefix}')">Build my plan</button>
     <div id="${prefix}RtOut"></div></div>`;
   const ta=document.getElementById(prefix+"RtText"); ta.focus();
+}
+function rtFile(inp, prefix){
+  const f=inp.files && inp.files[0]; if(!f) return;
+  if(f.size>200000){ toast("That file is too big. Paste the routine instead"); return; }
+  const r=new FileReader(); r.onload=()=>{ document.getElementById(prefix+"RtText").value=String(r.result||"").slice(0,20000); previewRoutine(prefix); };
+  r.onerror=()=>toast("Couldn't read that file. Paste the routine instead"); r.readAsText(f); inp.value="";
 }
 function previewRoutine(prefix){
   const txt=document.getElementById(prefix+"RtText").value, R=buildRoutine(txt), out=document.getElementById(prefix+"RtOut");
   if(!R.length){ out.innerHTML=`<div class="bwnote" style="color:#e8b04a">I couldn't find any days in that. Try lines like "3 chest" or "Barbell Bench Press", with a blank line between days.</div>`; rtPreview=null; return; }
   const curSplit = prefix==="st" ? profile.split : null, keep = curSplit && curSplit.length===R.length;
-  rtPreview={prefix, days:R};
-  out.innerHTML=`<div class="sgh" style="margin-top:14px">Your week · ${R.length} day${R.length===1?"":"s"}</div>
-    ${R.map((d,i)=>`<div class="sg"><div class="rtn"><span>${i+1}</span><input type="text" maxlength="30" value="${esc(keep?curSplit[i].name:d.name)}" data-i="${i}" class="rtname" aria-label="Day name"></div>
+  const wkAll = R.every(d=>d.wk!=null) && new Set(R.map(d=>d.wk)).size===R.length;
+  rtPreview={prefix, days:R, wkAll, rests:R.rests||[], cardio:R.cardio||[]};
+  const extra=[...(R.rests||[]).filter(w=>w!=null).map(w=>`${WKNAME[w]}: rest`), ...(R.cardio||[]).map(c=>`${c.wk!=null?WKNAME[c.wk]+": ":""}${c.name||"cardio"} (log it under Lifts → Cardio)`)];
+  out.innerHTML=`<div class="sgh" style="margin-top:14px">Your week · ${R.length} training day${R.length===1?"":"s"}</div>
+    ${R.map((d,i)=>`<div class="sg"><div class="rtn"><span>${d.wk!=null?WKNAME[d.wk].slice(0,3):i+1}</span><input type="text" maxlength="30" value="${esc(keep?curSplit[i].name:d.name)}" data-i="${i}" class="rtname" aria-label="Day name"></div>
       <ul class="rtl">${d.info.map(x=>`<li>${esc(x.name)}<small>${esc(x.from)}</small></li>`).join("")}</ul>
       ${(()=>{ const c=d.ex.filter(isCompound).length, h=Math.min(d.ex.length, Math.max(Math.min(c,3)+Math.min(d.ex.length-c,2), Math.min(3,d.ex.length))); return `<div class="sgm" style="margin:2px 0 6px">💪 Hypertrophy days: all ${d.ex.length} at 8–15 reps · 🏋️ Heavy days: ${h} exercises, ${c?"a top set of 5, then ":""}5–8 reps</div>`; })()}</div>`).join("")}
+    ${extra.length?`<div class="hint" style="margin-top:0">${extra.map(esc).join(" · ")}</div>`:""}
+    ${wkAll?`<label class="tog" style="margin-top:6px"><input type="checkbox" id="rtWk" checked> Follow these weekdays every week (${R.map(d=>WKNAME[d.wk].slice(0,3)+" "+esc(d.name)).join(", ")}). Other days are rest days.</label>`:""}
     ${keep?`<label class="tog" style="margin-top:2px"><input type="checkbox" id="rtKeep" checked onchange="rtKeepNames(this.checked)"> Keep my current day names, so each day keeps its history</label>`:""}
     <div class="hint">Your routine is a pump-style day, so the app splits it two ways. On <b>hypertrophy</b> days you do the whole list for 8–15 reps. On <b>heavy</b> days it trims to the main compound lifts, heavier for 5–8 reps, and the rest wait under ⇄ Swap. Your readiness picks which kind of day you get, so you stop doing the same thing every day. Every exercise starts at 3 sets. Picks fit your equipment, and the same muscle on two days gets different exercises. After you log a day, the plan follows what you actually did. Use ⇄ Swap on Today to change any pick.</div>
     <button class="btn" style="height:46px;font-size:15px;margin-top:10px" onclick="applyRoutine()">Use this routine</button>`;
@@ -2402,8 +2466,11 @@ function applyRoutine(){
   if(!rtPreview) return; const {prefix, days}=rtPreview;
   const names=[...document.querySelectorAll(`#${prefix}RtOut .rtname`)].map(x=>x.value.trim());
   const split=[]; days.forEach((d,i)=>split.push({name:uniqueName(names[i]||d.name, split, -1), type:d.type, ex:d.ex}));
-  if(prefix==="su"){ draft.split=split; draft.splitTouched=true; renderSplitEditor("su"); document.getElementById("suRoutine").classList.add("hide"); toast("Routine loaded. Finish setup below"); }
-  else { profile.split=cleanSplit(split); if(store(KEYS.profile,profile)){ draft=null; renderSettings(); toast("Routine saved. Today's plan uses it"); } }
+  const wkBox=document.getElementById("rtWk"), useWk = rtPreview.wkAll && wkBox && wkBox.checked;
+  let wkMap=null; if(useWk){ wkMap={}; for(let w=0;w<7;w++) wkMap[w]="rest"; days.forEach((d,i)=>wkMap[d.wk]=split[i].name); }
+  const msg = useWk ? "Weekly schedule set: "+days.map((d,i)=>WKNAME[d.wk].slice(0,3)+" "+split[i].name).join(", ") : null;
+  if(prefix==="su"){ draft.split=split; draft.splitTouched=true; draft.weekdays=wkMap; renderSplitEditor("su"); document.getElementById("suRoutine").classList.add("hide"); toast(msg || "Routine loaded. Finish setup below"); }
+  else { profile.split=cleanSplit(split); if(wkMap) profile.weekdays=wkMap; else delete profile.weekdays; if(store(KEYS.profile,profile)){ draft=null; renderSettings(); toast(msg || "Routine saved. Today's plan uses it"); } }
   rtPreview=null;
 }
 function routineOf(split){ const d=splitDays().find(x=>x.name===split); return d && Array.isArray(d.ex) && d.ex.length ? d.ex : null; }
@@ -2551,7 +2618,7 @@ function weekPlan(start){
   start=start||localDate(new Date());
   const S=SPLIT(); if(!S.length) return null;
   const off=new Set(offDays()), target=Math.min(7, Math.max(2, (profile && profile.days) || 7));
-  const st=[...Array(7)].map((_,i)=>{ const d=shift(start,i); return {d, off:off.has(d), train:!off.has(d)}; });
+  const st=[...Array(7)].map((_,i)=>{ const d=shift(start,i), o=off.has(d), wr=!o && wkRest(d) && !pinnedSplit(d); return {d, off:o, wrest:wr, train:!o && !wr}; });
   const done0=trainedOn(start);
   if(done0 && done0!=="Rest"){ st[0].train=true; st[0].done=done0; }
   else if(done0==="Rest"){ st[0].train=false; st[0].rested=true; }
@@ -2562,7 +2629,7 @@ function weekPlan(start){
     out.forEach(r=>r.len=(r.b-r.a+1)+(r.a===0?prior:0)); return out; };
   const nTrain=()=>st.filter(x=>x.train).length;
   // 1) If you set fewer days a week, spread suggested rests through the longest stretches.
-  for(let guard=0; guard<7 && nTrain()>target; guard++){
+  for(let guard=0; guard<7 && !wkMap() && nTrain()>target; guard++){
     const R=runs(); if(!R.length) break;
     const longest=R.sort((x,y)=>(y.b-y.a)-(x.b-x.a) || y.a-x.a)[0];
     const cand=[]; for(let i=longest.a;i<=longest.b;i++) if(!st[i].done) cand.push(i);
@@ -2579,7 +2646,7 @@ function weekPlan(start){
   }
   let nxt = st[0].done && S.includes(st[0].done) ? S[(S.indexOf(st[0].done)+1)%S.length] : nextSplit(start);
   // Days you picked keep your pick; the rest of the rotation fills in around them so no split day gets lost.
-  st.forEach(x=>{ if(x.done) x.split=x.done; else if(x.train && pinnedSplit(x.d)){ x.split=pinnedSplit(x.d); x.pinned=true; } });
+  st.forEach(x=>{ if(x.done) x.split=x.done; else if(x.train && pinnedSplit(x.d)){ x.split=pinnedSplit(x.d); x.pinned=true; } else if(x.train && wkSplit(x.d)){ x.split=wkSplit(x.d); x.wkd=true; } });
   const auto=st.filter(x=>x.train && !x.split), pinCount={}; st.forEach(x=>{ if(x.pinned) pinCount[x.split]=(pinCount[x.split]||0)+1; });
   let i=S.indexOf(nxt); const seq=[];
   for(let guard=0; seq.length<auto.length && guard<200; guard++, i++){ const sp=S[((i%S.length)+S.length)%S.length]; if(pinCount[sp]>0 && guard<S.length*2){ pinCount[sp]--; continue; } seq.push(sp); }
@@ -2595,6 +2662,7 @@ function lastDone(sp, before){ return Object.keys(lifts).filter(d=>d<before && l
 function dayReasons(W, idx){
   const x=W.days[idx], S=SPLIT(), out=[], dn=d=>nice(d).split(",")[0];
   if(x.off){ out.push(["You marked this day off.",""]); return out; }
+  if(x.wrest){ out.push([`Your weekly schedule has ${WKNAME[wdOf(x.d)]}s as a rest day.`,""]); out.push(["Want to train anyway? Pick a workout below for just this day.",""]); return out; }
   if(x.rested){ out.push(["You logged a rest day.",""]); return out; }
   if(x.ciRest){ out.push([`Your check-in score today (${x.score}) is below your rest line, so today is your rest day. Your split picks up tomorrow.`,""]); out.push(["Recovering today means a better session tomorrow. Train anyway is still on Today if you change your mind.",""]); return out; }
   if(x.due){ out.push(["This would be your 7th day in a row. The app always calls a rest after 6 straight days, sooner if your check-in says so.",""]); return out; }
@@ -2605,6 +2673,7 @@ function dayReasons(W, idx){
   const mine=splitMuscles(x.split), prevM = prevSplit ? splitMuscles(prevSplit) : new Set();
   const overlap=[...mine].filter(k=>prevM.has(k));
   if(x.pinned) out.push(["You picked this one.",""]);
+  else if(x.wkd) out.push([`Your weekly schedule has ${WKNAME[wdOf(x.d)]}s as ${x.split}.`,""]);
   else { const prevTrain=[...W.days.slice(0,idx)].reverse().find(y=>y.train); out.push([prevTrain ? `Next in your rotation after ${prevTrain.split}.` : `Next in your rotation${lastDone(S[(S.indexOf(x.split)-1+S.length)%S.length], x.d)?` after ${S[(S.indexOf(x.split)-1+S.length)%S.length]}`:""}.`,""]); }
   const ld=lastDone(x.split, x.d); if(ld){ const g=dayDiff(ld,x.d); out.push([`Last ${x.split} day was ${g} day${g===1?"":"s"} before (${nice(ld)}), so those muscles are rested.`, g>=3?"pos":""]); }
   if(prevSplit){ if(overlap.length>=2 || (overlap.length && overlap.length>=mine.size/2)) out.push([`Heads up: the day before (${prevSplit}) also hits ${overlap.map(k=>MUS_LABEL[k].toLowerCase()).join(" and ")}. Back to back can hold back your recovery. Fine if it's lighter, or swap the order.`,"warn"]);
@@ -2624,7 +2693,7 @@ function pinDay(d, sp){
   toast(sp ? `${nice(d).split(",")[0]}: ${sp}. Week re-planned around it` : `${nice(d).split(",")[0]} is back on auto`);
   renderCall();
 }
-const restPlannedOn = d => { const W=weekPlan(localDate(new Date())); const x=W && W.days.find(y=>y.d===d); return !!(x && (x.off||x.sug||x.due)); };
+const restPlannedOn = d => { const W=weekPlan(localDate(new Date())); const x=W && W.days.find(y=>y.d===d); return !!(x && (x.off||x.sug||x.due||x.wrest)); };
 const ABBR={chest:"Chest",biceps:"Bi",triceps:"Tri",back:"Back",shoulders:"Delts",shoulder:"Delts",quads:"Quads",hamstrings:"Hams",glutes:"Glutes",upper:"Upper",lower:"Lower",push:"Push",pull:"Pull",legs:"Legs",arms:"Arms",full:"Full",body:"Body"};
 function shortSplit(n){ const parts=String(n).split(/\s*[\/·]\s*/); return parts.map(p=>{ const w=p.trim().split(/\s+/); return w.map(x=>ABBR[x.toLowerCase()]||x.slice(0,5)).join(" "); }).join("/\u200b"); }
 function renderWeekPlan(){
@@ -2632,8 +2701,8 @@ function renderWeekPlan(){
   if(!profile){ el.innerHTML=""; return; }
   const W=weekPlan(); if(!W){ el.innerHTML=""; return; }
   const dn=d=>nice(d).split(",")[0];
-  const cells=W.days.map((x,i)=>{ const lbl = x.off ? "Off" : x.rested ? "Rested" : x.ciRest ? "Rest" : x.due ? "Rest due" : x.sug ? "Rest?" : shortSplit(x.split);
-    const cls = x.off ? "off" : x.ciRest ? "off ci" : (x.sug||x.rested||x.due) ? "sug" : x.done ? "done" : "";
+  const cells=W.days.map((x,i)=>{ const lbl = x.off ? "Off" : x.rested ? "Rested" : x.ciRest ? "Rest" : x.wrest ? "Rest" : x.due ? "Rest due" : x.sug ? "Rest?" : shortSplit(x.split);
+    const cls = x.off ? "off" : x.ciRest ? "off ci" : x.wrest ? "off" : (x.sug||x.rested||x.due) ? "sug" : x.done ? "done" : "";
     return `<button type="button" class="wd ${cls} ${i===0?"today":""} ${wkSel===x.d?"sel":""} ${x.pinned?"pin":""}" onclick="selectDay('${x.d}')" aria-label="${dn(x.d)}: ${esc(x.off?"day off":x.sug?"suggested rest":x.split||"")}">
       <span class="w">${i===0?"Today":dn(x.d).slice(0,3)}</span><span class="n">${Number(x.d.slice(8))}</span><span class="t">${esc(lbl)}</span>${x.heavyOk&&!x.done?'<span class="h">💪</span>':""}</button>`; }).join("");
   const notes=[];
@@ -2642,13 +2711,14 @@ function renderWeekPlan(){
   if(sug.length) notes.push(`Suggested rest: <b>${sug.join(", ")}</b>, to match your ${W.target} days a week. Train anyway if you feel good.`);
   const ci=W.days.find(x=>x.ciRest); if(ci) notes.push(`Your check-in score (${ci.score}) called for <b>rest today</b>, so your split moves back a day. If you feel better later, Train anyway still works.`);
   const due=W.days.find(x=>x.due); if(due) notes.push(`<b>${dn(due.d)}</b> would be 7 days in a row, so a rest is due by then.`);
-  if(!W.days.some(x=>x.off||x.sug||x.ciRest||x.rested)) notes.push(`No rest days planned. Your morning check-in picks them: if your score calls for rest, that day becomes your rest day and the week shifts.`);
+  if(wkMap()) notes.push(`Following your weekly schedule (${[1,2,3,4,5,6,0].filter(w=>wkMap()[w] && wkMap()[w]!=="rest").map(w=>WKNAME[w].slice(0,3)+" "+esc(wkMap()[w])).join(", ")}). Change any single day here, or stop it in Settings.`);
+  if(!wkMap() && !W.days.some(x=>x.off||x.sug||x.ciRest||x.rested)) notes.push(`No rest days planned. Your morning check-in picks them: if your score calls for rest, that day becomes your rest day and the week shifts.`);
   const h=W.days.find(x=>x.heavyOk && !x.done); if(h) notes.push(`💪 <b>${h.d===W.days[0].d?"Today":dn(h.d)}</b> is a good day to go heavy if you're ready, since you rest the day after.`);
   if(W.missing.length) notes.push(`<b>${W.missing.join(", ")}</b> won't fit in the next 7 days. ${W.missing.length===1?"It picks":"They pick"} up right after.`);
   el.innerHTML=`<div class="card"><label class="l">Your week</label><div class="wkstrip">${cells}</div>
     ${(()=>{ const idx=W.days.findIndex(x=>x.d===wkSel); if(idx<0) return ""; const x=W.days[idx], S=SPLIT();
       const R=dayReasons(W, idx);
-      return `<div class="wkdet"><div class="wkh">${idx===0?"Today":esc(nice(x.d))} · <b>${esc(x.off?"Day off":x.ciRest?"Rest (from your check-in)":x.due?"Rest due":x.sug?"Suggested rest":x.rested?"Rest":x.split)}</b>${x.pinned?' <span class="pinb">your pick</span>':""}</div>
+      return `<div class="wkdet"><div class="wkh">${idx===0?"Today":esc(nice(x.d))} · <b>${esc(x.off?"Day off":x.wrest?"Rest (weekly schedule)":x.ciRest?"Rest (from your check-in)":x.due?"Rest due":x.sug?"Suggested rest":x.rested?"Rest":x.split)}</b>${x.pinned?' <span class="pinb">your pick</span>':""}</div>
         <div class="schq" style="margin-top:8px">Why</div>
         <ul class="wknotes" style="margin-top:0">${R.map(([t,c])=>`<li class="${c}">${esc(t)}</li>`).join("")}</ul>
         ${x.done?"":`<div class="schq">Change this day</div>
@@ -3235,6 +3305,7 @@ function finishRedo(){
   if(d.units!==profile.units) changeUnits(d.units);            // converts your logged lifts and weigh-ins
   Object.assign(profile, {goal:d.goal, split, sex:d.sex||"na", cycle:cleanCycle(d.cycle), equip:cleanEquip(d.equip), sleepNeed:d.sleepNeed||DEFAULT_NEED, days:d.days||4, sessMin:d.sessMin||60, warmIn:d.warmIn!==false});
   if(profile.sex==="male") profile.cycle.on=false;
+  if(d.weekdays) profile.weekdays=d.weekdays; else if(d.weekdays===null) delete profile.weekdays;
   const bw=Number(typed); if(bw>0 && String(typed)!==String(orig.bw)) profile.bw=bw;
   prefs={...prefs, dur:profile.sessMin}; store(KEYS.prefs,prefs);
   if(!store(KEYS.profile, profile)) return;
@@ -3273,6 +3344,7 @@ function finishSetup(){
   if(!split.length){ toast("Add at least one training day"); suStep=6; renderSetup(); return; }
   const bw=Number(document.getElementById("suBw").value);
   profile={units:draft.units, goal:draft.goal, split, bw: bw>0?bw:"", sex:draft.sex||"na", cycle:cleanCycle(draft.cycle), equip:cleanEquip(draft.equip), swaps:{}, sleepNeed:draft.sleepNeed||DEFAULT_NEED, learn:true, acceptedAt:new Date().toISOString(), v:1, days:draft.days||4, sessMin:draft.sessMin||60, warmIn:draft.warmIn!==false};
+  if(draft.weekdays) profile.weekdays=draft.weekdays;
   prefs={...prefs, dur:profile.sessMin}; store(KEYS.prefs,prefs);
   if(profile.sex==="male") profile.cycle.on=false;
   if(!store(KEYS.profile, profile)){ profile=null; return; }
@@ -3280,7 +3352,11 @@ function finishSetup(){
   badgeState={earned:{}, init:false}; checkBadges();   // start fresh so the first workout gets celebrated
   openGuide(false, "You're set. Do your first check-in ☀️");
 }
+function stopWeekly(){ delete profile.weekdays; store(KEYS.profile,profile); renderSettings(); toast("Weekly schedule off. Your split rotates again"); }
 function renderSettings(){
+  { const el=document.getElementById("stWeekly"), M=wkMap(); if(el) el.innerHTML = M ? `<div class="sg on" style="margin-bottom:12px"><div class="sgt"><b>Weekly schedule</b></div>
+      <div class="sgb" style="margin-top:4px">${[1,2,3,4,5,6,0].map(w=>`${WKNAME[w].slice(0,3)}: ${esc(M[w] && M[w]!=="rest" ? M[w] : "rest")}`).join(" · ")}</div>
+      <button type="button" class="linkbtn" onclick="stopWeekly()">Stop following weekdays</button></div>` : ""; }
   renderDeloadSettings(); renderSchedule("st", profile, ()=>renderSettings());
   if(!draft) draft={units:profile.units, goal:profile.goal, split:profile.split.map(d=>({...d}))};
   segButtons(document.getElementById("stUnits"), [["lb","Pounds (lb)"],["kg","Kilograms (kg)"]], profile.units, v=>changeUnits(v));
@@ -3301,7 +3377,9 @@ function renderSettings(){
 function saveSplit(){
   const split=cleanSplit(draft.split);
   if(!split.length){ toast("Add at least one training day"); return; }
-  profile.split=split; if(store(KEYS.profile,profile)){ draft=null; renderSettings(); toast("Split saved"); }
+  profile.split=split; let wkOff=false;
+  if(wkMap() && Object.values(wkMap()).some(v=>v!=="rest" && !split.some(d=>d.name===v))){ delete profile.weekdays; wkOff=true; }
+  if(store(KEYS.profile,profile)){ draft=null; renderSettings(); toast(wkOff ? "Split saved. Weekly schedule turned off since your days changed" : "Split saved"); }
 }
 function changeUnits(v){
   if(v===profile.units) return;
@@ -3394,7 +3472,7 @@ document.getElementById("importFile").addEventListener("change", async e=>{
     const okDate=k=>/^\d{4}-\d{2}-\d{2}$/.test(k);
     const L={}; Object.keys(d.logs||{}).filter(okDate).forEach(k=>{ if(d.logs[k] && typeof d.logs[k]==="object"){ L[k]={...d.logs[k]}; if(!(typeof L[k].bw==="number" && L[k].bw>0 && L[k].bw<1000)) delete L[k].bw; } });
     const X={}; Object.keys(d.lifts||{}).filter(okDate).forEach(k=>{ const v=d.lifts[k]; const es=(Array.isArray(v)?v:(v&&v.entries)||[]).filter(e=>e&&typeof e.name==="string"&&typeof e.w==="number"&&typeof e.r==="number").map(e=>{ const o={id:String(e.id||Math.random().toString(36).slice(2)), name:String(e.name).slice(0,60), w:e.w, r:e.r, s:Number(e.s)||1}; if(typeof e.forPlan==="string") o.forPlan=e.forPlan.slice(0,60); if(typeof e.t==="number") o.t=e.t; return o; }); if(es.length) X[k]={split:(v&&v.split)||null, entries:es}; });
-    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false, days:(Number(d.profile.days)>=2&&Number(d.profile.days)<=7)?Number(d.profile.days):undefined, sessMin:(Number(d.profile.sessMin)>=30&&Number(d.profile.sessMin)<=180)?Number(d.profile.sessMin):undefined, warmIn:d.profile.warmIn!==false, musMap:(()=>{ const o={}, M=d.profile.musMap; if(M && typeof M==="object") Object.keys(M).slice(0,300).forEach(k=>{ const v=M[k]; if(!v || typeof v!=="object" || k.length>60) return; if(v.skip) o[k]={skip:true}; else if(MUS_LABEL[v.p]) o[k]={p:v.p, h:Array.isArray(v.h)?v.h.filter(x=>MUS_LABEL[x]&&x!==v.p).slice(0,4):[]}; }); return o; })()} : profile;
+    const P = d.profile && Array.isArray(d.profile.split) ? {...d.profile, split:cleanSplit(d.profile.split), units:d.profile.units==="kg"?"kg":"lb", goal:GOALS[d.profile.goal]?d.profile.goal:"maintain", sex:["male","female","na"].includes(d.profile.sex)?d.profile.sex:"na", cycle:cleanCycle(d.profile.cycle), equip:cleanEquip(d.profile.equip), swaps:cleanSwaps(d.profile.swaps), sleepNeed:(Number(d.profile.sleepNeed)>=4&&Number(d.profile.sleepNeed)<=11)?Number(d.profile.sleepNeed):DEFAULT_NEED, learn:d.profile.learn!==false, days:(Number(d.profile.days)>=2&&Number(d.profile.days)<=7)?Number(d.profile.days):undefined, sessMin:(Number(d.profile.sessMin)>=30&&Number(d.profile.sessMin)<=180)?Number(d.profile.sessMin):undefined, warmIn:d.profile.warmIn!==false, weekdays:(()=>{ const W=d.profile.weekdays; if(!W || typeof W!=="object") return undefined; const o={}; for(let w=0;w<7;w++){ const v=W[w]; o[w] = typeof v==="string" && v.length<=30 ? v : "rest"; } return o; })(), musMap:(()=>{ const o={}, M=d.profile.musMap; if(M && typeof M==="object") Object.keys(M).slice(0,300).forEach(k=>{ const v=M[k]; if(!v || typeof v!=="object" || k.length>60) return; if(v.skip) o[k]={skip:true}; else if(MUS_LABEL[v.p]) o[k]={p:v.p, h:Array.isArray(v.h)?v.h.filter(x=>MUS_LABEL[x]&&x!==v.p).slice(0,4):[]}; }); return o; })()} : profile;
     const FB={}; if(d.feedback && typeof d.feedback==="object") Object.keys(d.feedback).filter(okDate).forEach(k=>{ const f=d.feedback[k]; if(f && typeof f==="object"){ const o={}; if(FEEL.some(x=>x[0]===f.feel)) o.feel=f.feel; if(VOL.some(x=>x[0]===f.vol)) o.vol=f.vol; if(typeof f.split==="string") o.split=f.split.slice(0,30); if(o.vol==="moreEx" && MUS_LABEL[f.mus]) o.mus=f.mus; if(o.feel||o.vol) FB[k]=o; } });
     const SS={}; if(d.sessions && typeof d.sessions==="object") Object.keys(d.sessions).filter(okDate).forEach(k=>{ const v=d.sessions[k]; if(v && typeof v.start==="number"){ SS[k]={start:v.start}; if(typeof v.end==="number" && v.end>v.start) SS[k].end=v.end; else SS[k].end=v.start+60*60e3; } });
     if(!store(KEYS.logs,L) || !store(KEYS.lifts,X) || !store(KEYS.fb,FB) || !store(KEYS.sess,SS)) return;
