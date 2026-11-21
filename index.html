@@ -118,6 +118,11 @@
   .calstats div{background:var(--panel2);border-radius:12px;padding:10px 6px;text-align:center}
   .calstats b{display:block;font-size:22px;font-family:"Barlow Condensed",Inter,sans-serif}
   .calstats small{color:var(--muted);font-size:11.5px}
+  .sg{cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .08s,border-color .15s}
+  .sg:active{transform:scale(.985)}
+  .sg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .sgu{margin-top:8px;font-weight:600;font-size:13.5px;color:var(--accent)}
+  .sg.on .sgu{color:var(--ok)}
   .linkbtn{background:none;border:0;padding:0;color:var(--accent);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
   .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
@@ -819,7 +824,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "1.32.0";
+const APP_VERSION = "1.32.1";
 
 /* ================= storage (on this device only) ================= */
 const KEYS = {logs:"tc.logs", lifts:"tc.lifts", prefs:"tc.prefs", profile:"tc.profile", backup:"tc.lastBackup", guide:"tc.guide", cardio:"tc.cardio", fb:"tc.feedback", sess:"tc.sessions", badges:"tc.badges"};
@@ -915,10 +920,10 @@ function renderSplitSuggest(prefix){
   const who = {male:"men", female:"women", na:"you"}[sex];
   el.innerHTML=`<div class="sgx"><div class="sgh">Suggested for ${esc(GOALS[g].label.toLowerCase())}${sex==="na"?"":" · "+who}${nd?" · "+nd+" days a week":""}</div>
     ${ids.map((id,i)=>{ const S=SPLITS[id], on=S.days.join("|")===cur;
-      return `<div class="sg ${on?"on":""}"><div class="sgt"><b>${esc(S.name)}</b>${i===0?'<span class="top">Top pick</span>':""}</div>
+      return `<div class="sg ${on?"on":""}" role="button" tabindex="0" aria-pressed="${on}" aria-label="Use ${esc(S.name)}" onclick="useSplit('${prefix}','${id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();useSplit('${prefix}','${id}')}"><div class="sgt"><b>${esc(S.name)}</b>${i===0?'<span class="top">Top pick</span>':""}</div>
         <div class="sgm">${esc(S.meta)} · ${S.days.length===1?esc(S.days[0])+" each time":S.days.map(esc).join(" → ")}</div>
         <div class="sgb">${esc(S.blurb)}</div><div class="sgn">${esc(S.note[g]||"")}</div>
-        <button type="button" class="linkbtn" onclick="useSplit('${prefix}','${id}')">${on?"✓ Your split":"Use this split"}</button></div>`; }).join("")}
+        <div class="sgu">${on?"✓ Your split":"Tap to use this split"}</div></div>`; }).join("")}
     <div class="hint" style="margin-top:4px">Any split works if you train hard and stay consistent. These fit your goal best. Or pick any option below and edit the days.</div></div>`;
 }
 function useSplit(prefix, id, auto){
